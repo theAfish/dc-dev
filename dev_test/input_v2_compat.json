@@ -1,0 +1,77 @@
+{
+    "model": {
+        "type_map": [
+            "e",
+            "Si"
+        ],
+        "descriptor": {
+            "type": "se_e2_a",
+            "field_mode": true,
+            "sel": [
+                1,
+                30
+            ],
+            "rcut_smth": 0.5,
+            "rcut": 6.0,
+            "neuron": [
+                25,
+                50,
+                100
+            ],
+            "resnet_dt": false,
+            "axis_neuron": 16,
+            "seed": 1,
+            "_comment": " that's all"
+        },
+        "fitting_net": {
+            "type": "rho",
+            "neuron": [
+                240,
+                240,
+                240
+            ],
+            "resnet_dt": true,
+            "seed": 1,
+            "_comment": " that's all"
+        },
+        "data_stat_nbatch": 20,
+        "_comment": " that's all"
+    },
+    "learning_rate": {
+        "type": "exp",
+        "decay_steps": 100,
+        "start_lr": 0.001,
+        "stop_lr": 1e-08,
+        "_comment": "that's all"
+    },
+    "loss": {
+        "type": "rho",
+        "start_pref_rho": 10,
+        "limit_pref_rho": 10,
+        "_comment": " that's all"
+    },
+    "training": {
+        "training_data": {
+            "systems": [
+                "./data/si/sys.000"
+            ],
+            "batch_size": 1,
+            "_comment": "that's all"
+        },
+        "validation_data": {
+            "systems": [
+                "./data/si/val.000"
+            ],
+            "batch_size": 1,
+            "numb_btch": 1,
+            "_comment": "that's all"
+        },
+        "numb_steps": 100000,
+        "seed": 10,
+        "disp_file": "lcurve.out",
+        "disp_freq": 100,
+        "save_freq": 100,
+        "_comment": "that's all"
+    },
+    "_comment": "that's all"
+}

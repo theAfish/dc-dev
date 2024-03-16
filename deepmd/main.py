@@ -420,7 +420,8 @@ def main_parser() -> argparse.ArgumentParser:
         "-m",
         "--model",
         default="frozen_model",
-        type=str,                                                                                                                    help="Frozen model file (prefix) to import. TensorFlow backend: suffix is .pb; PyTorch backend: suffix is .pth.",
+        type=str,
+        help="Frozen model file (prefix) to import. TensorFlow backend: suffix is .pb; PyTorch backend: suffix is .pth.",
     )
     parser_field.add_argument(
         "-s",
@@ -450,7 +451,6 @@ def main_parser() -> argparse.ArgumentParser:
         type=int,
         help="The grid size on the z direction",
     )
-
 
     # * compress model *****************************************************************
     # Compress a model, which including tabulating the embedding-net.

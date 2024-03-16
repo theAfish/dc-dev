@@ -216,6 +216,7 @@ def descrpt_se_a_args():
     doc_sel = 'This parameter set the number of selected neighbors for each type of atom. It can be:\n\n\
     - `List[int]`. The length of the list should be the same as the number of atom types in the system. `sel[i]` gives the selected number of type-i neighbors. `sel[i]` is recommended to be larger than the maximally possible number of type-i neighbors in the cut-off radius. It is noted that the total sel value must be less than 4096 in a GPU environment.\n\n\
     - `str`. Can be "auto:factor" or "auto". "factor" is a float number larger than 1. This option will automatically determine the `sel`. In detail it counts the maximal number of neighbors with in the cutoff radius for each type of neighbor, then multiply the maximum by the "factor". Finally the number is wraped up to 4 divisible. The option "auto" is equivalent to "auto:1.1".'
+    doc_field_mode = "Whether the descriptor is used for fitting scalar field."
     doc_rcut = "The cut-off radius."
     doc_rcut_smth = "Where to start smoothing. For example the 1/r term is smoothed from `rcut` to `rcut_smth`"
     doc_neuron = "Number of neurons in each hidden layers of the embedding net. When two layers are of the same size or one layer is twice as large as the previous layer, a skip connection is built."
@@ -232,6 +233,7 @@ def descrpt_se_a_args():
 
     return [
         Argument("sel", [List[int], str], optional=True, default="auto", doc=doc_sel),
+        Argument("field_mode", bool, optional=True, default=False, doc=doc_field_mode),
         Argument("rcut", float, optional=True, default=6.0, doc=doc_rcut),
         Argument("rcut_smth", float, optional=True, default=0.5, doc=doc_rcut_smth),
         Argument(
@@ -1175,6 +1177,80 @@ def fitting_dipole():
         Argument("seed", [int, None], optional=True, doc=doc_seed),
     ]
 
+@fitting_args_plugin.register("rho")
+def fitting_rho():
+    doc_numb_fparam = "The dimension of the frame parameter. If set to >0, file `fparam.npy` should be included to provided the input fparams."
+    doc_numb_aparam = "The dimension of the atomic parameter. If set to >0, file `aparam.npy` should be included to provided the input aparams."
+    doc_neuron = "The number of neurons in each hidden layers of the fitting net. When two hidden layers are of the same size, a skip connection is built."
+    doc_activation_function = f'The activation function in the fitting net. Supported activation functions are {list_to_doc(ACTIVATION_FN_DICT.keys())} Note that "gelu" denotes the custom operator version, and "gelu_tf" denotes the TF standard version. If you set "None" or "none" here, no activation function will be used.'
+    doc_precision = f"The precision of the fitting net parameters, supported options are {list_to_doc(PRECISION_DICT.keys())} Default follows the interface precision."
+    doc_resnet_dt = 'Whether to use a "Timestep" in the skip connection'
+    doc_trainable = f"Whether the parameters in the fitting net are trainable. This option can be\n\n\
+- bool: True if all parameters of the fitting net are trainable, False otherwise.\n\n\
+- list of bool{doc_only_tf_supported}: Specifies if each layer is trainable. Since the fitting net is composed by hidden layers followed by a output layer, the length of this list should be equal to len(`neuron`)+1."
+    doc_rcond = "The condition number used to determine the inital energy shift for each type of atoms. See `rcond` in :py:meth:`numpy.linalg.lstsq` for more details."
+    doc_seed = "Random seed for parameter initialization of the fitting net"
+    doc_atom_ener = "Specify the atomic energy in vacuum for each type"
+    doc_layer_name = (
+        "The name of the each layer. The length of this list should be equal to n_neuron + 1. "
+        "If two layers, either in the same fitting or different fittings, "
+        "have the same name, they will share the same neural network parameters. "
+        "The shape of these layers should be the same. "
+        "If null is given for a layer, parameters will not be shared."
+    )
+    doc_use_aparam_as_mask = (
+        "Whether to use the aparam as a mask in input."
+        "If True, the aparam will not be used in fitting net for embedding."
+        "When descrpt is se_a_mask, the aparam will be used as a mask to indicate the input atom is real/virtual. And use_aparam_as_mask should be set to True."
+    )
+
+    return [
+        Argument("numb_fparam", int, optional=True, default=0, doc=doc_numb_fparam),
+        Argument("numb_aparam", int, optional=True, default=0, doc=doc_numb_aparam),
+        Argument(
+            "neuron",
+            List[int],
+            optional=True,
+            default=[120, 120, 120],
+            alias=["n_neuron"],
+            doc=doc_neuron,
+        ),
+        Argument(
+            "activation_function",
+            str,
+            optional=True,
+            default="tanh",
+            doc=doc_activation_function,
+        ),
+        Argument("precision", str, optional=True, default="default", doc=doc_precision),
+        Argument("resnet_dt", bool, optional=True, default=True, doc=doc_resnet_dt),
+        Argument(
+            "trainable",
+            [List[bool], bool],
+            optional=True,
+            default=True,
+            doc=doc_trainable,
+        ),
+        Argument(
+            "rcond", [float, type(None)], optional=True, default=None, doc=doc_rcond
+        ),
+        Argument("seed", [int, None], optional=True, doc=doc_seed),
+        Argument(
+            "atom_ener",
+            List[Optional[float]],
+            optional=True,
+            default=[],
+            doc=doc_atom_ener,
+        ),
+        Argument("layer_name", List[str], optional=True, doc=doc_layer_name),
+        Argument(
+            "use_aparam_as_mask",
+            bool,
+            optional=True,
+            default=False,
+            doc=doc_use_aparam_as_mask,
+        ),
+    ]
 
 #   YWolfeee: Delete global polar mode, merge it into polar mode and use loss setting to support.
 def fitting_variant_type_args():
@@ -1191,7 +1267,6 @@ def fitting_variant_type_args():
         default_tag="ener",
         doc=doc_descrpt_type,
     )
-
 
 #  --- Modifier configurations: --- #
 def modifier_dipole_charge():
@@ -1711,6 +1786,26 @@ def loss_ener():
         ),
     ]
 
+@loss_args_plugin.register("rho")
+def loss_rho():
+    doc_start_pref_rho = start_pref("field value", label="rho", abbr="rho")
+    doc_limit_pref_rho = limit_pref("field value")
+    return [
+        Argument(
+            "start_pref_rho",
+            [float, int],
+            optional=True,
+            default=1.00,
+            doc=doc_start_pref_rho,
+        ),
+        Argument(
+            "limit_pref_rho",
+            [float, int],
+            optional=True,
+            default=1.00,
+            doc=doc_limit_pref_rho,
+        ),
+    ]
 
 @loss_args_plugin.register("ener_spin")
 def loss_ener_spin():
@@ -2523,7 +2618,6 @@ def normalize_fitting_weight(fitting_keys, data_keys, fitting_weight=None):
 
 def normalize(data):
     data = normalize_multi_task(data)
-
     base = Argument("base", dict, gen_args())
     data = base.normalize_value(data, trim_pattern="_*")
     base.check_value(data, strict=True)

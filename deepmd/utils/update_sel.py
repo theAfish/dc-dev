@@ -33,6 +33,7 @@ class BaseUpdateSel:
             jdata,
             rcut,
             mixed_type=mixed_type,
+            field_mode=descriptor.get("field_mode", False),
         )
         sel = descriptor[sel_key]
         if isinstance(sel, int):
@@ -83,8 +84,8 @@ class BaseUpdateSel:
     def wrap_up_4(self, xx):
         return 4 * ((int(xx) + 3) // 4)
 
-    def get_sel(self, jdata, rcut, mixed_type: bool = False):
-        _, max_nbor_size = self.get_nbor_stat(jdata, rcut, mixed_type=mixed_type)
+    def get_sel(self, jdata, rcut, mixed_type: bool = False, field_mode: bool = False):
+        _, max_nbor_size = self.get_nbor_stat(jdata, rcut, mixed_type=mixed_type, field_mode=field_mode)
         return max_nbor_size
 
     def get_rcut(self, jdata):
@@ -105,7 +106,7 @@ class BaseUpdateSel:
     def get_type_map(self, jdata):
         return jdata["model"].get("type_map", None)
 
-    def get_nbor_stat(self, jdata, rcut, mixed_type: bool = False):
+    def get_nbor_stat(self, jdata, rcut, mixed_type: bool = False, field_mode: bool = False):
         # it seems that DeepmdDataSystem does not need rcut
         # it's not clear why there is an argument...
         # max_rcut = get_rcut(jdata)
@@ -151,7 +152,7 @@ class BaseUpdateSel:
 
         neistat = self.neighbor_stat(ntypes, rcut, mixed_type=mixed_type)
 
-        min_nbor_dist, max_nbor_size = neistat.get_stat(train_data)
+        min_nbor_dist, max_nbor_size = neistat.get_stat(train_data, field_mode=field_mode)
         self.hook(min_nbor_dist, max_nbor_size)
 
         return min_nbor_dist, max_nbor_size

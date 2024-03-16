@@ -46,7 +46,7 @@ class NeighborStat(ABC):
         self.ntypes = ntypes
         self.mixed_type = mixed_type
 
-    def get_stat(self, data: DeepmdDataSystem) -> Tuple[float, np.ndarray]:
+    def get_stat(self, data: DeepmdDataSystem, field_mode: bool = False) -> Tuple[float, np.ndarray]:
         """Get the data statistics of the training data, including nearest nbor distance between atoms, max nbor size of atoms.
 
         Parameters
@@ -71,7 +71,7 @@ class NeighborStat(ABC):
                     % jj
                 )
             if dt < min_nbor_dist:
-                if math.isclose(dt, 0.0, rel_tol=1e-6):
+                if math.isclose(dt, 0.0, rel_tol=1e-6) and not field_mode:
                     # it's unexpected that the distance between two atoms is zero
                     # zero distance will cause nan (#874)
                     raise RuntimeError(

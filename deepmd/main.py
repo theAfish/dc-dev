@@ -402,6 +402,55 @@ def main_parser() -> argparse.ArgumentParser:
         type=str,
         help="(Supported backend: PyTorch) Task head to test if in multi-task mode.",
     )
+    
+    # * field-infer script *************************************************************
+    parser_field = subparsers.add_parser(
+        "field-infer",
+        parents=[parser_log],
+        help="(PyTorch Only) infering the field",
+        formatter_class=RawTextArgumentDefaultsHelpFormatter,
+        epilog=textwrap.dedent(
+            """\
+        examples:
+            dp field-infer -m graph.pb -s /path/to/system -x 10 -y 10 -z 10
+        """
+        ),
+    )
+    parser_field.add_argument(
+        "-m",
+        "--model",
+        default="frozen_model",
+        type=str,                                                                                                                    help="Frozen model file (prefix) to import. TensorFlow backend: suffix is .pb; PyTorch backend: suffix is .pth.",
+    )
+    parser_field.add_argument(
+        "-s",
+        "--structure",
+        default=".",
+        type=str,
+        help="The structure for inference",
+    )
+    parser_field.add_argument(
+        "-x",
+        "--x_size",
+        default=10,
+        type=int,
+        help="The grid size on the x direction",
+    )
+    parser_field.add_argument(
+        "-y",
+        "--y_size",
+        default=10,
+        type=int,
+        help="The grid size on the y direction",
+    )
+    parser_field.add_argument(
+        "-z",
+        "--z_size",
+        default=10,
+        type=int,
+        help="The grid size on the z direction",
+    )
+
 
     # * compress model *****************************************************************
     # Compress a model, which including tabulating the embedding-net.
@@ -781,6 +830,7 @@ def main():
 
     if args.command in (
         "test",
+        "field-infer",
         "doc-train-input",
         "model-devi",
         "neighbor-stat",

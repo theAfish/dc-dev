@@ -62,6 +62,9 @@ def main(args: argparse.Namespace):
             strict_prefer=False,
         )
         test(**dict_args)
+    elif args.command == "field-infer":
+        print("field-infer entered")
+        print(dict_args)
     elif args.command == "doc-train-input":
         doc_train_input(**dict_args)
     elif args.command == "model-devi":

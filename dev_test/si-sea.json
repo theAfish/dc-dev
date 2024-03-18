@@ -21,6 +21,7 @@
             "_comment": " that's all"
         },
         "fitting_net": {
+            "type": "rho",
             "neuron": [
                 240,
                 240,

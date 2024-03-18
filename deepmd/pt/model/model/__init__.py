@@ -37,6 +37,9 @@ from .dp_zbl_model import (
 from .ener_model import (
     EnergyModel,
 )
+from .rho_model import (
+    RhoModel,
+)
 from .frozen import (
     FrozenModel,
 )
@@ -177,6 +180,7 @@ __all__ = [
     "get_model",
     "DPModel",
     "EnergyModel",
+    "RhoModel",
     "FrozenModel",
     "SpinModel",
     "SpinEnergyModel",

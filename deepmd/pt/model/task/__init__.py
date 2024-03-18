@@ -15,6 +15,9 @@ from .ener import (
     EnergyFittingNet,
     EnergyFittingNetDirect,
 )
+from .rho import (
+    RhoFittingNet,
+)
 from .fitting import (
     Fitting,
 )
@@ -31,6 +34,7 @@ __all__ = [
     "DipoleFittingNet",
     "EnergyFittingNet",
     "EnergyFittingNetDirect",
+    "RhoFittingNet",
     "Fitting",
     "BaseFitting",
     "TypePredictNet",

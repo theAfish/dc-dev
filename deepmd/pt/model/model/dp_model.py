@@ -25,6 +25,9 @@ from deepmd.pt.model.task.ener import (
     EnergyFittingNet,
     EnergyFittingNetDirect,
 )
+from deepmd.pt.model.task.rho import (
+    RhoFittingNet,
+)
 from deepmd.pt.model.task.polarizability import (
     PolarFittingNet,
 )
@@ -54,6 +57,9 @@ class DPModel(make_model(DPAtomicModel)):
         from deepmd.pt.model.model.ener_model import (
             EnergyModel,
         )
+        from deepmd.pt.model.model.rho_model import (
+            RhoModel,
+        )
         from deepmd.pt.model.model.polar_model import (
             PolarModel,
         )
@@ -70,6 +76,8 @@ class DPModel(make_model(DPAtomicModel)):
                 fitting, EnergyFittingNetDirect
             ):
                 cls = EnergyModel
+            elif isinstance(fitting, RhoFittingNet):
+                cls = RhoModel
             elif isinstance(fitting, DipoleFittingNet):
                 cls = DipoleModel
             elif isinstance(fitting, PolarFittingNet):

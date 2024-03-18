@@ -30,6 +30,7 @@
             "set_davg_zero": false
         },
         "fitting_net": {
+            "type": "rho",
             "neuron": [
                 240,
                 240,
@@ -37,7 +38,6 @@
             ],
             "resnet_dt": true,
             "seed": 1,
-            "type": "ener",
             "numb_fparam": 0,
             "numb_aparam": 0,
             "activation_function": "tanh",

@@ -5,6 +5,9 @@ from .denoise import (
 from .ener import (
     EnergyStdLoss,
 )
+from .rho import (
+    RhoLoss,
+)
 from .ener_spin import (
     EnergySpinLoss,
 )
@@ -18,6 +21,7 @@ from .tensor import (
 __all__ = [
     "DenoiseLoss",
     "EnergyStdLoss",
+    "RhoLoss",
     "EnergySpinLoss",
     "TensorLoss",
     "TaskLoss",

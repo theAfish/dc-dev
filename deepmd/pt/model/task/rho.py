@@ -161,7 +161,7 @@ class RhoFittingNet(InvarFitting):
                 sampled = merged()
             else:
                 sampled = merged
-            energy = [item["rho"].sum(axis=1) for item in sampled]
+            energy = [item["rho"].sum(axis=1) for item in sampled] # sum to get "energy"
             data_mixed_type = "real_natoms_vec" in sampled[0]
             natoms_key = "natoms" if not data_mixed_type else "real_natoms_vec"
             for system in sampled:

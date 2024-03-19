@@ -15,6 +15,7 @@ from .dpa2 import (
 )
 from .env_mat import (
     prod_env_mat,
+    prod_env_mat_rho,
 )
 from .gaussian_lcc import (
     DescrptGaussianLcc,
@@ -46,6 +47,7 @@ __all__ = [
     "DescrptDPA2",
     "DescrptHybrid",
     "prod_env_mat",
+    "prod_env_mat_rho",
     "DescrptGaussianLcc",
     "DescrptBlockHybrid",
     "DescrptBlockRepformers",

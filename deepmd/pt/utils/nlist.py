@@ -268,7 +268,7 @@ def extend_coord_with_ghosts(
     rcut: float,
     cell_cpu: Optional[torch.Tensor] = None,
 ):
-    """Extend the coordinates of the atoms by appending peridoc images.
+    """Extend the coordinates of the atoms by appending periodic images.
     The number of images is large enough to ensure all the neighbors
     within rcut are appended.
 

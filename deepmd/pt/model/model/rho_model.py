@@ -10,7 +10,7 @@ from .dp_model import (
     DPModel,
 )
 
-from deepmd.pt.utils.nlist import (
+from deepmd.pt.utils.nlist_field import (
     extend_input_and_build_neighbor_list,
 )
 

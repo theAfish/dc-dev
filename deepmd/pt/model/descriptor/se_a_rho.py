@@ -15,7 +15,7 @@ import torch
 
 from deepmd.pt.model.descriptor import (
     DescriptorBlock,
-    prod_env_mat,
+    prod_env_mat_rho,
 )
 from deepmd.pt.utils import (
     env,
@@ -220,3 +220,114 @@ class DescrptSeARho(DescrptSeA, torch.nn.Module):
         obj.sea.filter_layers = NetworkCollection.deserialize(embeddings)
         return obj
 
+    def forward(
+        self,
+        nlist: torch.Tensor,
+        extended_coord: torch.Tensor,
+        extended_atype: torch.Tensor,
+        extended_atype_embd: Optional[torch.Tensor] = None,
+        mapping: Optional[torch.Tensor] = None,
+    ):
+        """Calculate decoded embedding for each atom.
+
+        Args:
+        - coord: Tell atom coordinates with shape [nframes, natoms[1]*3].
+        - atype: Tell atom types with shape [nframes, natoms[1]].
+        - natoms: Tell atom count and element count. Its shape is [2+self.ntypes].
+        - box: Tell simulation box with shape [nframes, 9].
+
+        Returns
+        -------
+        - `torch.Tensor`: descriptor matrix with shape [nframes, natoms[0]*self.filter_neuron[-1]*self.axis_neuron].
+        """
+        del extended_atype_embd, mapping
+        nloc = nlist.shape[1]
+        atype = extended_atype[:, :nloc]
+        dmatrix, diff, sw = prod_env_mat_rho(
+            extended_coord,
+            nlist,
+            atype,
+            self.mean,
+            self.stddev,
+            self.rcut,
+            self.rcut_smth,
+            protection=self.env_protection,
+        )
+
+        if self.old_impl:
+            assert self.filter_layers_old is not None
+            dmatrix = dmatrix.view(
+                -1, self.ndescrpt
+            )  # shape is [nframes*nall, self.ndescrpt]
+            xyz_scatter = torch.empty(
+                1,
+                device=env.DEVICE,
+            )
+            ret = self.filter_layers_old[0](dmatrix)
+            xyz_scatter = ret
+            for ii, transform in enumerate(self.filter_layers_old[1:]):
+                # shape is [nframes*nall, 4, self.filter_neuron[-1]]
+                ret = transform.forward(dmatrix)
+                xyz_scatter = xyz_scatter + ret
+        else:
+            assert self.filter_layers is not None
+            dmatrix = dmatrix.view(-1, self.nnei, 4)
+            dmatrix = dmatrix.to(dtype=self.prec)
+            nfnl = dmatrix.shape[0]
+            # pre-allocate a shape to pass jit
+            xyz_scatter = torch.zeros(
+                [nfnl, 4, self.filter_neuron[-1]],
+                dtype=self.prec,
+                device=extended_coord.device,
+            )
+            # nfnl x nnei
+            exclude_mask = self.emask(nlist, extended_atype).view(nfnl, -1)
+            for embedding_idx, ll in enumerate(self.filter_layers.networks):
+                if self.type_one_side:
+                    ii = embedding_idx
+                    # torch.jit is not happy with slice(None)
+                    # ti_mask = torch.ones(nfnl, dtype=torch.bool, device=dmatrix.device)
+                    # applying a mask seems to cause performance degradation
+                    ti_mask = None
+                else:
+                    # ti: center atom type, ii: neighbor type...
+                    ii = embedding_idx // self.ntypes
+                    ti = embedding_idx % self.ntypes
+                    ti_mask = atype.ravel().eq(ti)
+                # nfnl x nt
+                if ti_mask is not None:
+                    mm = exclude_mask[ti_mask, self.sec[ii] : self.sec[ii + 1]]
+                else:
+                    mm = exclude_mask[:, self.sec[ii] : self.sec[ii + 1]]
+                # nfnl x nt x 4
+                if ti_mask is not None:
+                    rr = dmatrix[ti_mask, self.sec[ii] : self.sec[ii + 1], :]
+                else:
+                    rr = dmatrix[:, self.sec[ii] : self.sec[ii + 1], :]
+                rr = rr * mm[:, :, None]
+                ss = rr[:, :, :1]
+                # nfnl x nt x ng
+                gg = ll.forward(ss)
+                # nfnl x 4 x ng
+                gr = torch.matmul(rr.permute(0, 2, 1), gg)
+                if ti_mask is not None:
+                    xyz_scatter[ti_mask] += gr
+                else:
+                    xyz_scatter += gr
+
+        xyz_scatter /= self.nnei
+        xyz_scatter_1 = xyz_scatter.permute(0, 2, 1)
+        rot_mat = xyz_scatter_1[:, :, 1:4]
+        xyz_scatter_2 = xyz_scatter[:, :, 0 : self.axis_neuron]
+        result = torch.matmul(
+            xyz_scatter_1, xyz_scatter_2
+        )  # shape is [nframes*nall, self.filter_neuron[-1], self.axis_neuron]
+        result = result.view(-1, nloc, self.filter_neuron[-1] * self.axis_neuron)
+        rot_mat = rot_mat.view([-1, nloc] + list(rot_mat.shape[1:]))  # noqa:RUF005
+        return (
+            result.to(dtype=env.GLOBAL_PT_FLOAT_PRECISION),
+            rot_mat.to(dtype=env.GLOBAL_PT_FLOAT_PRECISION),
+            None,
+            None,
+            sw,
+        )

@@ -161,6 +161,7 @@ class RhoModel(DPModel):
         )
         model_predict = self.output_type_cast(model_predict, input_prec)
         return model_predict
+
     def forward(
         self,
         coord,

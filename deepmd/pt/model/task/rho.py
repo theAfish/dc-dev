@@ -113,7 +113,7 @@ class RhoFittingNet(InvarFitting):
             The path to the stat file.
 
         """
-        bias_atom_e = self._compute_output_stats(
+        bias_atom_e = self._compute_output_stats(                           # why only e?
             merged, self.ntypes, stat_file_path, self.rcond, self.atom_ener
         )
         self.bias_atom_e.copy_(
@@ -121,6 +121,7 @@ class RhoFittingNet(InvarFitting):
                 [self.ntypes, self.dim_out]
             )
         )
+
     def _compute_output_stats(
             self,
             merged: Union[Callable[[], List[dict]], List[dict]],

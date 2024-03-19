@@ -180,7 +180,7 @@ class RhoModel(DPModel):
         )
         if self.get_fitting_net() is not None:
             model_predict = {}
-            model_predict["atom_energy"] = model_ret["energy"]
+            model_predict["rho"] = model_ret["rho"]
         else:
             model_predict = model_ret
             model_predict["updated_coord"] += coord
@@ -208,7 +208,7 @@ class RhoModel(DPModel):
         )
         if self.get_fitting_net() is not None:
             model_predict = {}
-            model_predict["atom_energy"] = model_ret["energy"]
+            model_predict["rho"] = model_ret["rho"]
         else:
             model_predict = model_ret
         return model_predict

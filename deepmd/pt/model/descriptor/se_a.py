@@ -86,6 +86,8 @@ class DescrptSeA(BaseDescriptor, torch.nn.Module):
     ):
         super().__init__()
         self.field_mode = kwargs.get("field_mode", False)
+        if self.field_mode:
+            env_protection = 1e-3
         self.sea = DescrptBlockSeA(
             rcut,
             rcut_smth,

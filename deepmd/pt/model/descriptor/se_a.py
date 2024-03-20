@@ -347,6 +347,9 @@ class DescrptBlockSeA(DescriptorBlock):
         # order matters, placed after the assignment of self.ntypes
         self.reinit_exclude(exclude_types)
 
+        # the switch for using deep charge
+        self.field_mode = kwargs.get("field_mode", False)
+
         self.sel = sel
         # should be on CPU to avoid D2H, as it is used as slice index
         self.sec = [0, *np.cumsum(self.sel).tolist()]
@@ -481,7 +484,7 @@ class DescrptBlockSeA(DescriptorBlock):
             The path to the stat file.
 
         """
-        env_mat_stat = EnvMatStatSe(self)
+        env_mat_stat = EnvMatStatSe(self, field_mode=self.field_mode)
         if path is not None:
             path = path / env_mat_stat.get_hash()
         if path is None or not path.is_dir():

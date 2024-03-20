@@ -297,13 +297,18 @@ def extend_coord_with_ghosts(
     device = coord.device
     nf, nloc = atype.shape
     aidx = torch.tile(torch.arange(nloc, device=device).unsqueeze(0), [nf, 1])
+    real_index = atype > 0
+    real_coord = coord[real_index].reshape(nf, -1, 3)
+    real_atype = atype[real_index].reshape(nf, -1)
+    _, real_nloc = real_atype.shape
+    real_aidx = aidx[real_index].reshape(nf, -1)
     if cell is None:
         nall = nloc
         extend_coord = coord.clone()
         extend_atype = atype.clone()
         extend_aidx = aidx.clone()
     else:
-        coord = coord.view([nf, nloc, 3])
+        real_coord = real_coord.view([nf, real_nloc, 3])
         cell = cell.view([nf, 3, 3])
         cell_cpu = cell_cpu.view([nf, 3, 3]) if cell_cpu is not None else cell
         # nf x 3
@@ -318,7 +323,7 @@ def extend_coord_with_ghosts(
         xi = torch.arange(-nbuff_cpu[0], nbuff_cpu[0] + 1, 1, device="cpu")
         yi = torch.arange(-nbuff_cpu[1], nbuff_cpu[1] + 1, 1, device="cpu")
         zi = torch.arange(-nbuff_cpu[2], nbuff_cpu[2] + 1, 1, device="cpu")
-        eye_3 = torch.eye(3, dtype=env.GLOBAL_PT_FLOAT_PRECISION, device="cpu")
+        eye_3 = torch.eye(3, dtype=torch.float64, device="cpu")
         xyz = xi.view(-1, 1, 1, 1) * eye_3[0]
         xyz = xyz + yi.view(1, -1, 1, 1) * eye_3[1]
         xyz = xyz + zi.view(1, 1, -1, 1) * eye_3[2]
@@ -326,18 +331,28 @@ def extend_coord_with_ghosts(
         xyz = xyz.to(device=device, non_blocking=True)
         # ns x 3
         shift_idx = xyz[torch.argsort(torch.norm(xyz, dim=1))]
+        # delete the first row [0,0,0]. concatenate the coord later
+        shift_idx = shift_idx[1:]
+
         ns, _ = shift_idx.shape
-        nall = ns * nloc
+        nall = ns * real_nloc
+
         # nf x ns x 3
         shift_vec = torch.einsum("sd,fdk->fsk", shift_idx, cell)
         # nf x ns x nloc x 3
-        extend_coord = coord[:, None, :, :] + shift_vec[:, :, None, :]
+        extend_coord = real_coord[:, None, :, :] + shift_vec[:, :, None, :]
         # nf x ns x nloc
-        extend_atype = torch.tile(atype.unsqueeze(-2), [1, ns, 1])
+        extend_atype = torch.tile(real_atype.unsqueeze(-2), [1, ns, 1])
         # nf x ns x nloc
-        extend_aidx = torch.tile(aidx.unsqueeze(-2), [1, ns, 1])
+        extend_aidx = torch.tile(real_aidx.unsqueeze(-2), [1, ns, 1])
+
+        # concatenate the original coord, atype, aidx
+        extend_coord = torch.cat([coord, extend_coord.reshape([nf, nall, 3])], dim=1)
+        extend_atype = torch.cat([atype, extend_atype.view([nf, nall])], dim=1)
+        extend_aidx = torch.cat([aidx, extend_aidx.view([nf, nall])], dim=1)
+
     return (
-        extend_coord.reshape([nf, nall * 3]).to(device),
-        extend_atype.view([nf, nall]).to(device),
-        extend_aidx.view([nf, nall]).to(device),
+        extend_coord.to(device),
+        extend_atype.to(device),
+        extend_aidx.to(device),
     )

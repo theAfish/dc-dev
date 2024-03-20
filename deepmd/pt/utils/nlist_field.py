@@ -259,7 +259,7 @@ def build_multiple_neighbor_list(
         ret[get_multiple_nlist_key(rc, ns)] = nlist0
     return ret
 
-
+# TODO rewrite
 def extend_coord_with_ghosts(
     coord: torch.Tensor,
     atype: torch.Tensor,

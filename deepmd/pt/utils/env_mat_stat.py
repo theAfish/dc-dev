@@ -70,12 +70,16 @@ class EnvMatStatSe(EnvMatStat):
         The descriptor of the model.
     """
 
-    def __init__(self, descriptor: "DescriptorBlock"):
+    def __init__(self, descriptor: "DescriptorBlock", field_mode: bool = False):
         super().__init__()
         self.descriptor = descriptor
         self.last_dim = (
             self.descriptor.ndescrpt // self.descriptor.nnei
         )  # se_r=1, se_a=4
+        if field_mode:
+            from deepmd.pt.utils.nlist_field import (
+                extend_input_and_build_neighbor_list,
+            )
 
     def iter(
         self, data: List[Dict[str, Union[torch.Tensor, List[Tuple[int, int]]]]]
@@ -112,7 +116,7 @@ class EnvMatStatSe(EnvMatStat):
             radial_only = True
         else:
             raise ValueError(
-                "last_dim should be 1 for raial-only or 4 for full descriptor."
+                "last_dim should be 1 for radial-only or 4 for full descriptor."
             )
         for system in data:
             coord, atype, box, natoms = (

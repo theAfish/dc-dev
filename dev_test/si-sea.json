@@ -5,7 +5,7 @@
             "Si"
         ],
         "descriptor": {
-            "type": "se_e2_a_rho",
+            "type": "se_e2_a",
             "field_mode": true,
 	        "sel": [1,30],
             "rcut_smth": 0.50,

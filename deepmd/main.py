@@ -421,7 +421,7 @@ def main_parser() -> argparse.ArgumentParser:
         "--model",
         default="frozen_model",
         type=str,
-        help="Frozen model file (prefix) to import. TensorFlow backend: suffix is .pb; PyTorch backend: suffix is .pth.",
+        help="Frozen model file (prefix) to import. PyTorch backend: suffix is .pth.",
     )
     parser_field.add_argument(
         "-s",

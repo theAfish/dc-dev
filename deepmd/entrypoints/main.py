@@ -30,6 +30,9 @@ from deepmd.entrypoints.test import (
 from deepmd.infer.model_devi import (
     make_model_devi,
 )
+from deepmd.infer.deep_charge import (
+    field_infer,
+)
 from deepmd.loggers.loggers import (
     set_log_handles,
 )
@@ -63,8 +66,13 @@ def main(args: argparse.Namespace):
         )
         test(**dict_args)
     elif args.command == "field-infer":
-        print("field-infer entered")
-        print(dict_args)
+        dict_args["model"] = format_model_suffix(
+            dict_args["model"],
+            feature=Backend.Feature.DEEP_EVAL,
+            preferred_backend=args.backend,
+            strict_prefer=False,
+        )
+        field_infer(**dict_args)
     elif args.command == "doc-train-input":
         doc_train_input(**dict_args)
     elif args.command == "model-devi":

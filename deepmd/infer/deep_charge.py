@@ -1,191 +1,204 @@
-import logging
-from pathlib import Path
-from typing import Tuple, List, Optional
-
-from deepmd.infer.deep_eval import DeepEval
-from deepmd.utils.data import (
-    DeepmdData,
-)
-from deepmd.infer.deep_pot import (
-    DeepPot,
+# SPDX-License-Identifier: LGPL-3.0-or-later
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
 )
 
 import numpy as np
 
-__all__ = ["field_infer"]
+from deepmd.dpmodel.output_def import (
+    FittingOutputDef,
+    ModelOutputDef,
+    OutputVariableDef,
+)
 
-log = logging.getLogger(__name__)
-
-def field_infer(
-    *,
-    model: str,
-    structure: str,
-    detail_file: str,
-    head: Optional[str] = None,
-    **kwargs,
-):
-    dp = DeepEval(model, head=head)
-
-    tmap = dp.get_type_map() if isinstance(dp, DeepPot) else None
-    data = DeepmdData(
-        structure,
-        "set",
-        shuffle_test=False,
-        type_map=tmap,
-        sort_atoms=False,
-    )
-
-    if isinstance(dp, DeepPot):
-        err = test_ener(
-            dp,
-            data,
-            structure,
-            0,
-            detail_file
-        )
+from .deep_eval import (
+    DeepEval,
+)
 
 
-def test_ener(
-    dp: "DeepPot",
-    data: DeepmdData,
-    system: str,
-    numb_test: int,
-    detail_file: Optional[str],
-    append_detail: bool = False,
-) -> Tuple[List[np.ndarray], List[int]]:
-    """Test energy type model.
+class DeepCharge(DeepEval):
+    """Potential energy model.
 
     Parameters
     ----------
-    dp : DeepPot
-        instance of deep potential
-    data : DeepmdData
-        data container object
-    system : str
-        system directory
-    numb_test : int
-        number of tests to do
-    detail_file : Optional[str]
-        file where test details will be output
-    append_detail : bool, optional
-        if true append output detail file, by default False
+    model_file : Path
+        The name of the frozen model file.
+    *args : list
+        Positional arguments.
+    auto_batch_size : bool or int or AutoBatchSize, default: True
+        If True, automatic batch size will be used. If int, it will be used
+        as the initial batch size.
+    neighbor_list : ase.neighborlist.NewPrimitiveNeighborList, optional
+        The ASE neighbor list class to produce the neighbor list. If None, the
+        neighbor list will be built natively in the model.
+    **kwargs : dict
+        Keyword arguments.
 
-    Returns
-    -------
-    Tuple[List[np.ndarray], List[int]]
-        arrays with results and their shapes
+    Examples
+    --------
+    >>> from deepmd.infer import DeepPot
+    >>> import numpy as np
+    >>> dp = DeepPot("graph.pb")
+    >>> coord = np.array([[1, 0, 0], [0, 0, 1.5], [1, 0, 3]]).reshape([1, -1])
+    >>> cell = np.diag(10 * np.ones(3)).reshape([1, -1])
+    >>> atype = [1, 0, 1]
+    >>> e, f, v = dp.eval(coord, cell, atype)
+
+    where `e`, `f` and `v` are predicted energy, force and virial of the system, respectively.
     """
-    data.add("rho", 1, atomic=True, must=False, high_prec=True)
-    if dp.has_efield:
-        data.add("efield", 3, atomic=True, must=True, high_prec=False)
-    if dp.get_dim_fparam() > 0:
-        data.add(
-            "fparam", dp.get_dim_fparam(), atomic=False, must=True, high_prec=False
-        )
-    if dp.get_dim_aparam() > 0:
-        data.add("aparam", dp.get_dim_aparam(), atomic=True, must=True, high_prec=False)
-    if dp.has_spin:
-        data.add("spin", 3, atomic=True, must=True, high_prec=False)
 
-    test_data = data.get_test()
-    mixed_type = data.mixed_type
-    natoms = len(test_data["type"][0])
-    nframes = test_data["box"].shape[0]
-    numb_test = min(nframes, numb_test)
-
-    coord = test_data["coord"][:numb_test].reshape([numb_test, -1])
-    box = test_data["box"][:numb_test]
-    if dp.has_efield:
-        efield = test_data["efield"][:numb_test].reshape([numb_test, -1])
-    else:
-        efield = None
-    if dp.has_spin:
-        spin = test_data["spin"][:numb_test].reshape([numb_test, -1])
-    else:
-        spin = None
-    if not data.pbc:
-        box = None
-    if mixed_type:
-        atype = test_data["type"][:numb_test].reshape([numb_test, -1])
-    else:
-        atype = test_data["type"][0]
-    if dp.get_dim_fparam() > 0:
-        fparam = test_data["fparam"][:numb_test]
-    else:
-        fparam = None
-    if dp.get_dim_aparam() > 0:
-        aparam = test_data["aparam"][:numb_test]
-    else:
-        aparam = None
-
-    ret = dp.eval(
-        coord,
-        box,
-        atype,
-        fparam=fparam,
-        aparam=aparam,
-        efield=efield,
-        mixed_type=mixed_type,
-        spin=spin,
-    )
-    energy = ret[0]
-    energy = energy.reshape([numb_test, 1])
-
-    out_put_spin = dp.get_ntypes_spin() != 0 or dp.has_spin
-
-    diff_e = energy - test_data["energy"][:numb_test].reshape([-1, 1])
-
-    log.info(f"# number of test data : {numb_test:d} ")
-    log.info(f"Energy MAE         : {diff_e:e} eV")
-
-    if detail_file is not None:
-        detail_path = Path(detail_file)
-
-        pe = np.concatenate(
-            (
-                np.reshape(test_data["energy"][:numb_test], [-1, 1]),
-                np.reshape(energy, [-1, 1]),
-            ),
-            axis=1,
-        )
-        save_txt_file(
-            detail_path.with_suffix(".e.out"),
-            pe,
-            header="%s: data_e pred_e" % system,
-            append=append_detail,
-        )
-        pe_atom = pe / natoms
-        save_txt_file(
-            detail_path.with_suffix(".e_peratom.out"),
-            pe_atom,
-            header="%s: data_e pred_e" % system,
-            append=append_detail,
+    @property
+    def output_def(self) -> ModelOutputDef:
+        """Get the output definition of this model."""
+        return ModelOutputDef(
+            FittingOutputDef(
+                [
+                    OutputVariableDef(
+                        "energy",
+                        shape=[1],
+                        reduciable=True,
+                        r_differentiable=True,
+                        c_differentiable=True,
+                        atomic=True,
+                    ),
+                ]
+            )
         )
 
-    mae_e = None
-    mae_ea = None
-    return {
-        "mae_e": (mae_e, energy.size),
-        "mae_ea": (mae_ea, energy.size),
-    }
+    @property
+    def output_def_mag(self) -> ModelOutputDef:
+        """Get the output definition of this model with magnetic parts."""
+        return ModelOutputDef(
+            FittingOutputDef(
+                [
+                    OutputVariableDef(
+                        "energy",
+                        shape=[1],
+                        reduciable=True,
+                        r_differentiable=True,
+                        c_differentiable=True,
+                        atomic=True,
+                        magnetic=True,
+                    ),
+                ]
+            )
+        )
+
+    def eval(
+        self,
+        coords: np.ndarray,
+        cells: Optional[np.ndarray],
+        atom_types: Union[List[int], np.ndarray],
+        atomic: bool = False,
+        fparam: Optional[np.ndarray] = None,
+        aparam: Optional[np.ndarray] = None,
+        mixed_type: bool = False,
+        **kwargs: Dict[str, Any],
+    ) -> Tuple[np.ndarray, ...]:
+        """Evaluate energy, force, and virial. If atomic is True,
+        also return atomic energy and atomic virial.
+
+        Parameters
+        ----------
+        coords : np.ndarray
+            The coordinates of the atoms, in shape (nframes, natoms, 3).
+        cells : np.ndarray
+            The cell vectors of the system, in shape (nframes, 9). If the system
+            is not periodic, set it to None.
+        atom_types : List[int] or np.ndarray
+            The types of the atoms. If mixed_type is False, the shape is (natoms,);
+            otherwise, the shape is (nframes, natoms).
+        atomic : bool, optional
+            Whether to return atomic energy and atomic virial, by default False.
+        fparam : np.ndarray, optional
+            The frame parameters, by default None.
+        aparam : np.ndarray, optional
+            The atomic parameters, by default None.
+        mixed_type : bool, optional
+            Whether the atom_types is mixed type, by default False.
+        **kwargs : Dict[str, Any]
+            Keyword arguments.
+
+        Returns
+        -------
+        energy
+            The energy of the system, in shape (nframes,).
+        force
+            The force of the system, in shape (nframes, natoms, 3).
+        virial
+            The virial of the system, in shape (nframes, 9).
+        atomic_energy
+            The atomic energy of the system, in shape (nframes, natoms). Only returned
+            when atomic is True.
+        atomic_virial
+            The atomic virial of the system, in shape (nframes, natoms, 9). Only returned
+            when atomic is True.
+        """
+        # This method has been used by:
+        # documentation python.md
+        # dp model_devi: +fparam, +aparam, +mixed_type
+        # dp test: +atomic, +fparam, +aparam, +efield, +mixed_type
+        # finetune: +mixed_type
+        # dpdata
+        # ase
+        (
+            coords,
+            cells,
+            atom_types,
+            fparam,
+            aparam,
+            nframes,
+            natoms,
+        ) = self._standard_input(coords, cells, atom_types, fparam, aparam, mixed_type)
+        results = self.deep_eval.eval(
+            coords,
+            cells,
+            atom_types,
+            atomic,
+            fparam=fparam,
+            aparam=aparam,
+            **kwargs,
+        )
+        energy = results["energy_redu"].reshape(nframes, 1)
+        force = results["energy_derv_r"].reshape(nframes, natoms, 3)
+        virial = results["energy_derv_c_redu"].reshape(nframes, 9)
+
+        if atomic:
+            if self.get_ntypes_spin() > 0:
+                ntypes_real = self.get_ntypes() - self.get_ntypes_spin()
+                natoms_real = sum(
+                    [
+                        np.count_nonzero(np.array(atom_types[0]) == ii)
+                        for ii in range(ntypes_real)
+                    ]
+                )
+            else:
+                natoms_real = natoms
+            atomic_energy = results["energy"].reshape(nframes, natoms_real, 1)
+            atomic_virial = results["energy_derv_c"].reshape(nframes, natoms, 9)
+            result = (
+                energy,
+                force,
+                virial,
+                atomic_energy,
+                atomic_virial,
+            )
+        else:
+            result = (
+                energy,
+                force,
+                virial,
+            )
+        if self.deep_eval.get_has_spin():
+            force_mag = results["energy_derv_r_mag"].reshape(nframes, natoms, 3)
+            mask_mag = results["mask_mag"].reshape(nframes, natoms, 1)
+            result = (*list(result), force_mag, mask_mag)
+        return result
 
 
-def save_txt_file(
-    fname: Path, data: np.ndarray, header: str = "", append: bool = False
-):
-    """Save numpy array to test file.
-
-    Parameters
-    ----------
-    fname : str
-        filename
-    data : np.ndarray
-        data to save to disk
-    header : str, optional
-        header string to use in file, by default ""
-    append : bool, optional
-        if true file will be appended insted of overwriting, by default False
-    """
-    flags = "ab" if append else "w"
-    with fname.open(flags) as fp:
-        np.savetxt(fp, data, header=header)
+__all__ = ["DeepCharge"]

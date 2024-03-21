@@ -431,6 +431,13 @@ def main_parser() -> argparse.ArgumentParser:
         help="The structure for inference",
     )
     parser_field.add_argument(
+        "-o",
+        "--output",
+        default="./result.xyz",
+        type=str,
+        help="The output file for the result",
+    )
+    parser_field.add_argument(
         "-x",
         "--x_size",
         default=10,

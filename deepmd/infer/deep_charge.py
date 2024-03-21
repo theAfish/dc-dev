@@ -12,19 +12,15 @@ from deepmd.infer.deep_pot import (
 
 import numpy as np
 
+__all__ = ["field_infer"]
+
 log = logging.getLogger(__name__)
 
-def test(
+def field_infer(
     *,
     model: str,
-    system: str,
-    datafile: str,
-    set_prefix: str,
-    numb_test: int,
-    rand_seed: Optional[int],
-    shuffle_test: bool,
+    structure: str,
     detail_file: str,
-    atomic: bool,
     head: Optional[str] = None,
     **kwargs,
 ):
@@ -32,9 +28,9 @@ def test(
 
     tmap = dp.get_type_map() if isinstance(dp, DeepPot) else None
     data = DeepmdData(
-        system,
-        set_prefix,
-        shuffle_test=shuffle_test,
+        structure,
+        "set",
+        shuffle_test=False,
         type_map=tmap,
         sort_atoms=False,
     )
@@ -43,8 +39,8 @@ def test(
         err = test_ener(
             dp,
             data,
-            system,
-            numb_test,
+            structure,
+            0,
             detail_file
         )
 
@@ -79,7 +75,7 @@ def test_ener(
     Tuple[List[np.ndarray], List[int]]
         arrays with results and their shapes
     """
-    data.add("rho", 1, atomic=False, must=False, high_prec=True)
+    data.add("rho", 1, atomic=True, must=False, high_prec=True)
     if dp.has_efield:
         data.add("efield", 3, atomic=True, must=True, high_prec=False)
     if dp.get_dim_fparam() > 0:

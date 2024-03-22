@@ -312,11 +312,11 @@ def extend_coord_with_ghosts(
         cell = cell.view([nf, 3, 3])
         cell_cpu = cell_cpu.view([nf, 3, 3]) if cell_cpu is not None else cell
         # nf x 3
-        to_face = to_face_distance(cell_cpu)
+        to_face = to_face_distance(cell_cpu)    # the distance to three faces
         # nf x 3
         # *2: ghost copies on + and - directions
         # +1: central cell
-        nbuff = torch.ceil(rcut / to_face).to(torch.long)
+        nbuff = torch.ceil(rcut / to_face).to(torch.long)   # how many cells to extend
         # 3
         nbuff = torch.max(nbuff, dim=0, keepdim=False).values
         nbuff_cpu = nbuff.cpu()

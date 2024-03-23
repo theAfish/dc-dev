@@ -59,7 +59,7 @@ class DeepCharge(DeepEval):
             FittingOutputDef(
                 [
                     OutputVariableDef(
-                        "energy",
+                        "rho",
                         shape=[1],
                         reduciable=True,
                         r_differentiable=True,
@@ -77,7 +77,7 @@ class DeepCharge(DeepEval):
             FittingOutputDef(
                 [
                     OutputVariableDef(
-                        "energy",
+                        "rho",
                         shape=[1],
                         reduciable=True,
                         r_differentiable=True,

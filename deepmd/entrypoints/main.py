@@ -30,7 +30,7 @@ from deepmd.entrypoints.test import (
 from deepmd.infer.model_devi import (
     make_model_devi,
 )
-from deepmd.infer.deep_charge import (
+from deepmd.entrypoints.field_infer import (
     field_infer,
 )
 from deepmd.loggers.loggers import (

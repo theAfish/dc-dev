@@ -35,6 +35,9 @@ from deepmd.infer.deep_polar import (
 from deepmd.infer.deep_pot import (
     DeepPot,
 )
+from deepmd.infer.deep_charge import (
+    DeepCharge,
+)
 from deepmd.infer.deep_wfc import (
     DeepWFC,
 )
@@ -154,6 +157,8 @@ class DeepEval(DeepEvalBackend):
         model_output_type = self.dp.model["Default"].model_output_type()
         if "energy" in model_output_type:
             return DeepPot
+        elif "rho" in model_output_type:
+            return DeepCharge
         elif "dos" in model_output_type:
             return DeepDOS
         elif "dipole" in model_output_type:

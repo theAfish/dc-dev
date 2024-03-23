@@ -20,7 +20,7 @@ def field_infer(
     *,
     model: str,
     structure: str,
-    detail_file: str,
+    output: str,
     head: Optional[str] = None,
     **kwargs,
 ):
@@ -41,7 +41,7 @@ def field_infer(
             data,
             structure,
             0,
-            detail_file
+            output
         )
 
 

@@ -438,6 +438,13 @@ def main_parser() -> argparse.ArgumentParser:
         help="The output file for the result",
     )
     parser_field.add_argument(
+        "-b",
+        "--batch_size",
+        default=0,
+        type=int,
+        help="The batch size in the inference",
+    )
+    parser_field.add_argument(
         "-x",
         "--x_size",
         default=10,

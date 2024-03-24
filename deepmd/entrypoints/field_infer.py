@@ -16,15 +16,23 @@ __all__ = ["field_infer"]
 
 log = logging.getLogger(__name__)
 
+
 def field_infer(
     *,
     model: str,
     structure: str,
     output: str,
+    batch_size: int,
+    x: int,
+    y: int,
+    z: int,
     head: Optional[str] = None,
     **kwargs,
 ):
     dp = DeepEval(model, head=head)
+
+    if batch_size == 0:
+        batch_size = int(x * y)
 
     tmap = dp.get_type_map() if isinstance(dp, DeepCharge) else None
     data = DeepmdData(
@@ -38,21 +46,27 @@ def field_infer(
 
 
     if isinstance(dp, DeepCharge):
-        err = test_ener(
+        err = pred_rho(
             dp,
             data,
             structure,
-            0,
-            output
+            output,
+            batch_size,
+            x,
+            y,
+            z,
         )
 
 
-def test_ener(
+def pred_rho(
     dp: "DeepPot",
     data: DeepmdData,
     system: str,
-    numb_test: int,
-    detail_file: Optional[str],
+    output: Optional[str],
+    batch_size: int,
+    x: int,
+    y: int,
+    z: int,
     append_detail: bool = False,
 ) -> Tuple[List[np.ndarray], List[int]]:
     """Test energy type model.
@@ -110,6 +124,11 @@ def test_ener(
     else:
         aparam = None
 
+    raw_grid = create_grid_points([x, y, z])  # create grid points
+    raw_grid = raw_grid.reshape(-1, batch_size, 3)
+
+    coord = np.concatenate((coord, [[0.,0.,0.]]), axis=1)
+    atype = np.concatenate((atype, [[0]]), axis=1)
 
     ret = dp.eval(
         coord,
@@ -176,3 +195,10 @@ def save_txt_file(
     flags = "ab" if append else "w"
     with fname.open(flags) as fp:
         np.savetxt(fp, data, header=header)
+
+
+def create_grid_points(grid_size):
+    zeros = np.zeros(grid_size)
+    label = np.where(zeros == 0)
+    points = np.transpose(label) / grid_size
+    return points.astype(np.float64)

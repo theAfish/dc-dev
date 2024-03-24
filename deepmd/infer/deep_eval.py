@@ -75,6 +75,7 @@ class DeepEvalBackend(ABC):
         "dos_redu": "dos",
         "mask_mag": "mask_mag",
         "mask": "mask",
+        "rho": "rho",
     }
 
     @abstractmethod

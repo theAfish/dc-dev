@@ -61,9 +61,9 @@ class DeepCharge(DeepEval):
                     OutputVariableDef(
                         "rho",
                         shape=[1],
-                        reduciable=True,
-                        r_differentiable=True,
-                        c_differentiable=True,
+                        reduciable=False,
+                        r_differentiable=False,
+                        c_differentiable=False,
                         atomic=True,
                     ),
                 ]
@@ -164,40 +164,14 @@ class DeepCharge(DeepEval):
             aparam=aparam,
             **kwargs,
         )
-        energy = results["energy_redu"].reshape(nframes, 1)
-        force = results["energy_derv_r"].reshape(nframes, natoms, 3)
-        virial = results["energy_derv_c_redu"].reshape(nframes, 9)
+        rho = results["rho"].reshape(nframes, natoms, 1)
+        # energy = results["energy_redu"].reshape(nframes, 1)
+        # force = results["energy_derv_r"].reshape(nframes, natoms, 3)
+        # virial = results["energy_derv_c_redu"].reshape(nframes, 9)
 
-        if atomic:
-            if self.get_ntypes_spin() > 0:
-                ntypes_real = self.get_ntypes() - self.get_ntypes_spin()
-                natoms_real = sum(
-                    [
-                        np.count_nonzero(np.array(atom_types[0]) == ii)
-                        for ii in range(ntypes_real)
-                    ]
-                )
-            else:
-                natoms_real = natoms
-            atomic_energy = results["energy"].reshape(nframes, natoms_real, 1)
-            atomic_virial = results["energy_derv_c"].reshape(nframes, natoms, 9)
-            result = (
-                energy,
-                force,
-                virial,
-                atomic_energy,
-                atomic_virial,
-            )
-        else:
-            result = (
-                energy,
-                force,
-                virial,
-            )
-        if self.deep_eval.get_has_spin():
-            force_mag = results["energy_derv_r_mag"].reshape(nframes, natoms, 3)
-            mask_mag = results["mask_mag"].reshape(nframes, natoms, 1)
-            result = (*list(result), force_mag, mask_mag)
+        result = (
+            rho,
+        )
         return result
 
 

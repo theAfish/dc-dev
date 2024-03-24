@@ -73,7 +73,7 @@ class RhoLoss(TaskLoss):
         self.use_l1_all = use_l1_all
         self.inference = inference
 
-    def forward(self, model_pred, label, natoms, learning_rate, mae=False):
+    def forward(self, model_pred, label, natoms, learning_rate, atype=None, mae=False):
         """Return loss on loss and force.
 
         Args:
@@ -95,10 +95,12 @@ class RhoLoss(TaskLoss):
         # more_loss['test_keys'] = []  # showed when doing dp test
         atom_norm = 1.0 / natoms
 
+        indices_pseudo = (atype.flatten() == 0).nonzero().flatten()
+
         if self.has_rho and "rho" in model_pred and "rho" in label:
             if not self.use_l1_all:
                 l2_rho_loss = torch.mean(
-                    torch.square(model_pred["rho"] - label["rho"])
+                    torch.square(model_pred["rho"][:, indices_pseudo] - label["rho"][:, indices_pseudo])
                 )
                 if not self.inference:
                     more_loss["l2_rho_loss"] = l2_rho_loss.detach()
@@ -107,8 +109,8 @@ class RhoLoss(TaskLoss):
                 more_loss["rmse_rho"] = rmse_rho.detach()
             else:
                 l1_ener_loss = F.l1_loss(
-                    model_pred["rho"].reshape(-1),
-                    label["rho"].reshape(-1),
+                    model_pred["rho"][:, indices_pseudo].reshape(-1),
+                    label["rho"][:, indices_pseudo].reshape(-1),
                     reduction="sum",
                 )
                 loss += pref_rho * l1_ener_loss

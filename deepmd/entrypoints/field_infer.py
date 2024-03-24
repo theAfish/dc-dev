@@ -6,8 +6,8 @@ from deepmd.infer.deep_eval import DeepEval
 from deepmd.utils.data import (
     DeepmdData,
 )
-from deepmd.infer.deep_pot import (
-    DeepPot,
+from deepmd.infer.deep_charge import (
+    DeepCharge,
 )
 
 import numpy as np
@@ -26,7 +26,7 @@ def field_infer(
 ):
     dp = DeepEval(model, head=head)
 
-    tmap = dp.get_type_map() if isinstance(dp, DeepPot) else None
+    tmap = dp.get_type_map() if isinstance(dp, DeepCharge) else None
     data = DeepmdData(
         structure,
         "set",
@@ -35,7 +35,9 @@ def field_infer(
         sort_atoms=False,
     )
 
-    if isinstance(dp, DeepPot):
+
+
+    if isinstance(dp, DeepCharge):
         err = test_ener(
             dp,
             data,
@@ -76,47 +78,38 @@ def test_ener(
         arrays with results and their shapes
     """
     data.add("rho", 1, atomic=True, must=False, high_prec=True)
-    if dp.has_efield:
-        data.add("efield", 3, atomic=True, must=True, high_prec=False)
+
     if dp.get_dim_fparam() > 0:
         data.add(
             "fparam", dp.get_dim_fparam(), atomic=False, must=True, high_prec=False
         )
     if dp.get_dim_aparam() > 0:
         data.add("aparam", dp.get_dim_aparam(), atomic=True, must=True, high_prec=False)
-    if dp.has_spin:
-        data.add("spin", 3, atomic=True, must=True, high_prec=False)
+
 
     test_data = data.get_test()
     mixed_type = data.mixed_type
     natoms = len(test_data["type"][0])
-    nframes = test_data["box"].shape[0]
-    numb_test = min(nframes, numb_test)
+    numb_test = test_data["box"].shape[0]
 
-    coord = test_data["coord"][:numb_test].reshape([numb_test, -1])
-    box = test_data["box"][:numb_test]
-    if dp.has_efield:
-        efield = test_data["efield"][:numb_test].reshape([numb_test, -1])
-    else:
-        efield = None
-    if dp.has_spin:
-        spin = test_data["spin"][:numb_test].reshape([numb_test, -1])
-    else:
-        spin = None
+    coord = test_data["coord"].reshape([numb_test, -1])
+    box = test_data["box"]
+
     if not data.pbc:
         box = None
     if mixed_type:
-        atype = test_data["type"][:numb_test].reshape([numb_test, -1])
+        atype = test_data["type"]
     else:
         atype = test_data["type"][0]
     if dp.get_dim_fparam() > 0:
-        fparam = test_data["fparam"][:numb_test]
+        fparam = test_data["fparam"]
     else:
         fparam = None
     if dp.get_dim_aparam() > 0:
-        aparam = test_data["aparam"][:numb_test]
+        aparam = test_data["aparam"]
     else:
         aparam = None
+
 
     ret = dp.eval(
         coord,
@@ -124,16 +117,10 @@ def test_ener(
         atype,
         fparam=fparam,
         aparam=aparam,
-        efield=efield,
-        mixed_type=mixed_type,
-        spin=spin,
     )
-    energy = ret[0]
-    energy = energy.reshape([numb_test, 1])
+    rho = ret[0]
 
-    out_put_spin = dp.get_ntypes_spin() != 0 or dp.has_spin
-
-    diff_e = energy - test_data["energy"][:numb_test].reshape([-1, 1])
+    diff_e = rho - test_data["rho"][:numb_test].reshape([-1, 1])
 
     log.info(f"# number of test data : {numb_test:d} ")
     log.info(f"Energy MAE         : {diff_e:e} eV")

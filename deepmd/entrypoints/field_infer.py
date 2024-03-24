@@ -146,7 +146,7 @@ def pred_rho(
         results.append(result)
 
     results = np.concatenate(results, axis=0)
-    np.savetxt(output, results, header="x y z rho", comments="")
+    np.savetxt(output, results, header="{}\n x y z rho".format(x*y*z), comments="")
 
     diff_e = rho - test_data["rho"][:numb_test].reshape([-1, 1])
 

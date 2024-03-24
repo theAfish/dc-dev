@@ -104,9 +104,8 @@ def pred_rho(
     test_data = data.get_test()
     mixed_type = data.mixed_type
     natoms = len(test_data["type"][0])
-    numb_test = test_data["box"].shape[0]
 
-    coord = test_data["coord"].reshape([numb_test, -1])
+    coord = test_data["coord"]
     box = test_data["box"]
 
     if not data.pbc:
@@ -125,19 +124,29 @@ def pred_rho(
         aparam = None
 
     raw_grid = create_grid_points([x, y, z])  # create grid points
+    raw_grid = raw_grid @ box.reshape(3, 3)
     raw_grid = raw_grid.reshape(-1, batch_size, 3)
 
-    coord = np.concatenate((coord, [[0.,0.,0.]]), axis=1)
-    atype = np.concatenate((atype, [[0]]), axis=1)
+    _atype = np.concatenate((atype, np.zeros([1, batch_size])), axis=1)
+    results = []
 
-    ret = dp.eval(
-        coord,
-        box,
-        atype,
-        fparam=fparam,
-        aparam=aparam,
-    )
-    rho = ret[0]
+    for i in range(raw_grid.shape[0]):
+        grid = raw_grid[i]
+        _coord = np.concatenate((coord, grid.reshape(-1)[None, :]), axis=1)
+
+        ret = dp.eval(
+            coord,
+            box,
+            atype,
+            fparam=fparam,
+            aparam=aparam,
+        )
+        rho = ret[0][0, -batch_size:]
+        result = np.concatenate((grid, rho), axis=1)
+        results.append(result)
+
+    results = np.concatenate(results, axis=0)
+    np.savetxt(output, results, header="x y z rho", comments="")
 
     diff_e = rho - test_data["rho"][:numb_test].reshape([-1, 1])
 

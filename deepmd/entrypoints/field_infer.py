@@ -23,16 +23,16 @@ def field_infer(
     structure: str,
     output: str,
     batch_size: int,
-    x: int,
-    y: int,
-    z: int,
+    x_size: int,
+    y_size: int,
+    z_size: int,
     head: Optional[str] = None,
     **kwargs,
 ):
     dp = DeepEval(model, head=head)
 
     if batch_size == 0:
-        batch_size = int(x * y)
+        batch_size = int(x_size * y_size)
 
     tmap = dp.get_type_map() if isinstance(dp, DeepCharge) else None
     data = DeepmdData(
@@ -52,9 +52,9 @@ def field_infer(
             structure,
             output,
             batch_size,
-            x,
-            y,
-            z,
+            x_size,
+            y_size,
+            z_size,
         )
 
 

@@ -392,6 +392,21 @@ class Trainer:
         # JIT
         if JIT:
             self.model = torch.jit.script(self.model)
+        
+                # Initialize the fparam
+        if model_params["fitting_net"]["numb_fparam"] > 0:
+            nbatches = 10
+            datasets = training_data.systems
+            dataloaders = training_data.dataloaders
+            fparams = []
+            for i in range(len(datasets)):
+                iterator = iter(dataloaders[i])
+                numb_batches = min(nbatches, len(dataloaders[i]))
+                for _ in range(numb_batches):
+                    stat_data = next(iterator)
+                    fparams.append(stat_data['fparam'])
+            fparams = torch.tensor(fparams)
+            init_fparam(self.model, fparams)
 
         # Model Wrapper
         self.wrapper = ModelWrapper(self.model, self.loss, model_params=model_params)
@@ -1210,6 +1225,12 @@ def get_additional_data_requirement(_model):
         ]
         additional_data_requirement += spin_requirement_items
     return additional_data_requirement
+
+
+def init_fparam(_model, fparams):
+    fitting = _model.get_fitting_net()
+    fitting['fparam_avg'] = torch.unsqueeze(torch.mean(fparams, dim=0), dim=-1).to(DEVICE)
+    fitting['fparam_inv_std'] = torch.unsqueeze(1. / torch.std(fparams, dim=0), dim=-1).to(DEVICE)
 
 
 def get_loss(loss_params, start_lr, _ntypes, _model):

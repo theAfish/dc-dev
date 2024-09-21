@@ -155,8 +155,7 @@ The path to the CUDA toolkit directory. CUDA 9.0 or later is supported. NVCC is 
 
 **Type**: Path; **Default**: Detected automatically
 
-The path to the ROCM toolkit directory. If `ROCM_ROOT` is not set, it will look for `ROCM_PATH`; if `ROCM_PATH` is also not set, it will be detected using `hipconfig --rocmpath`.
-
+The path to the ROCM toolkit directory.
 :::
 
 :::{envvar} DP_ENABLE_TENSORFLOW

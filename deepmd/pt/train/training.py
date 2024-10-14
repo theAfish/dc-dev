@@ -393,21 +393,39 @@ class Trainer:
         if JIT:
             self.model = torch.jit.script(self.model)
         
-        # Initialize the fparam
-        if model_params["fitting_net"]["numb_fparam"] > 0:
-            log.info("Detected fparam. Initialize fparam from training data.")
-            nbatches = 10
-            datasets = training_data.systems
-            dataloaders = training_data.dataloaders
-            fparams = []
-            for i in range(len(datasets)):
-                iterator = iter(dataloaders[i])
-                numb_batches = min(nbatches, len(dataloaders[i]))
-                for _ in range(numb_batches):
-                    stat_data = next(iterator)
-                    fparams.append(stat_data['fparam'])
-            fparams = torch.tensor(fparams)
-            init_fparam(self.model, fparams)
+        # Initialize the fparam. TODO: Support multi-task
+        if not self.multi_task:
+            if model_params["fitting_net"]["numb_fparam"] > 0:
+                log.info("Detected fparam. Initialize fparam from training data.")
+                nbatches = 10
+                datasets = training_data.systems
+                dataloaders = training_data.dataloaders
+                fparams = []
+                for i in range(len(datasets)):
+                    iterator = iter(dataloaders[i])
+                    numb_batches = min(nbatches, len(dataloaders[i]))
+                    for _ in range(numb_batches):
+                        stat_data = next(iterator)
+                        fparams.append(stat_data['fparam'])
+                fparams = torch.tensor(fparams)
+                init_fparam(self.model, fparams)
+        else:
+            model_keys = list(model_params["model_dict"].keys())
+            for key in model_keys:
+                if model_params["model_dict"][key]["fitting_net"]["numb_fparam"] > 0:
+                    log.info(f"Detected fparam in {key}. Initialize fparam from training data.")
+                    nbatches = 10
+                    datasets = training_data[key].systems
+                    dataloaders = training_data[key].dataloaders
+                    fparams = []
+                    for i in range(len(datasets)):
+                        iterator = iter(dataloaders[i])
+                        numb_batches = min(nbatches, len(dataloaders[i]))
+                        for _ in range(numb_batches):
+                            stat_data = next(iterator)
+                            fparams.append(stat_data['fparam'])
+                    fparams = torch.tensor(fparams)
+                    init_fparam(self.model[key], fparams)
 
         # Model Wrapper
         self.wrapper = ModelWrapper(self.model, self.loss, model_params=model_params)
@@ -500,7 +518,7 @@ class Trainer:
                             if i != "_extra_state" and f".{_model_key}." in i
                         ]
                         for item_key in target_keys:
-                            if _new_fitting and ".fitting_net." in item_key:
+                            if _new_fitting and (".descriptor." not in item_key):
                                 # print(f'Keep {item_key} in old model!')
                                 _new_state_dict[item_key] = (
                                     _random_state_dict[item_key].clone().detach()

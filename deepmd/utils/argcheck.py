@@ -936,6 +936,42 @@ def descrpt_dpa2_args():
     ]
 
 
+# param embedding for fparam
+def param_embedding_args():
+    doc_kernel_num = "The number of Gaussian kernels."
+    doc_std_width = "The width of Gaussian kernels."
+    doc_start = "The start of the Gaussian kernels."
+    doc_stop = "The end of the Gaussian kernels."
+    doc_activation_function = f"The activation function in the embedding net. Supported activation functions are {list_to_doc(ACTIVATION_FN_DICT.keys())}."
+    doc_neuron = "Number of neurons in each hidden layers of the embedding net. When two layers are of the same size or one layer is twice as large as the previous layer, a skip connection is built."
+    doc_resnet_dt = 'Whether to use a "Timestep" in the skip connection.'
+    # doc_trainable = "If the parameters in the embedding net is trainable"
+    doc_use_tebd_bias = "Whether to use bias in the Gaussian embedding layer."
+
+    return [
+        Argument("kernel_num", int, doc=doc_kernel_num),
+        Argument("std_width", float, doc=doc_std_width),
+        Argument("start", float, doc=doc_start),
+        Argument("stop", float, doc=doc_stop),
+        Argument(
+            "activation_function",
+            str,
+            optional=True,
+            default="tanh",
+            doc=doc_activation_function,
+        ),
+        Argument(
+            "neuron", 
+            list,
+            optional=True,
+            default=[10, 10],
+            doc=doc_neuron
+        ),
+        Argument("resnet_dt", bool, optional=True, default=False, doc=doc_resnet_dt),
+        # Argument("trainable", bool, optional=True, default=True, doc=doc_trainable),
+        Argument("use_tebd_bias", bool, optional=True, default=False, doc=doc_use_tebd_bias),
+    ]
+
 # repinit for dpa2
 def dpa2_repinit_args():
     # repinit args
@@ -1487,8 +1523,10 @@ def fitting_property():
     doc_task_dim = "The dimension of outputs of fitting net"
     doc_intensive = "Whether the fitting property is intensive"
     doc_bias_method = "The method of applying the bias to each atomic output, user can select 'normal' or 'no_bias'. If 'no_bias' is used, no bias will be added to the atomic output."
+    doc_param_embd = "Whether to use the Gaussian embedding for fparam."
     return [
         Argument("numb_fparam", int, optional=True, default=0, doc=doc_numb_fparam),
+        Argument("param_embd", dict, param_embedding_args(), optional=True, default=None, doc=doc_param_embd),
         Argument("numb_aparam", int, optional=True, default=0, doc=doc_numb_aparam),
         Argument(
             "neuron",
@@ -2347,6 +2385,20 @@ def loss_property():
             optional=True,
             default=1.00,
             doc=doc_beta,
+        ),
+        Argument(
+            "start_pref_e",
+            [float, int],
+            optional=True,
+            default=0.00,
+            doc="The prefactor of the weight of loss at the start of the training. Should be larger than or equal to 0.",
+        ),
+        Argument(
+            "limit_pref_e",
+            [float, int],
+            optional=True,
+            default=0.00,
+            doc="The prefactor of the weight of loss at the limit of the training. Should be larger than or equal to 0.",
         ),
     ]
 

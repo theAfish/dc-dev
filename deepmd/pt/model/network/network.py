@@ -854,6 +854,68 @@ def gaussian(x, mean, std: float):
     return torch.exp(-0.5 * (((x - mean) / std) ** 2)) / (a * std)
 
 
+class ParamGaussianKernel(nn.Module):
+    def __init__(self, K=128, std_width=1.0, start=0.0, stop=9.0):
+        super().__init__()
+        self.K = K
+        std_width = std_width
+        start = start
+        stop = stop
+        mean = torch.linspace(start, stop, K, dtype=env.GLOBAL_PT_FLOAT_PRECISION)  # pylint: disable=no-explicit-device
+        self.std = (std_width * (mean[1] - mean[0])).item()
+        self.register_buffer("mean", mean)
+
+    def forward(self, x):
+        # [nframes, nfparams, K]
+        x = x.expand(-1, self.K)
+        mean = self.mean.view(-1)
+        return gaussian(x, mean, self.std)
+
+
+class ParamGaussianEmbedding(nn.Module):
+    def __init__(
+        self,
+        kernel_num=64,
+        std_width=1.0,
+        start=0,
+        stop=9,
+        activation_function="tanh",
+        neuron=[10, 10],
+        resnet_dt=False,
+        precision="default",
+        seed: Optional[Union[int, List[int]]] = None,
+        use_tebd_bias=False,
+    ):
+        """Construct a gaussian kernel based embedding of parameters.
+
+        Args:
+            kernel_num: Number of gaussian kernels.
+        """
+        super().__init__()
+        self.pgk = ParamGaussianKernel(K=kernel_num, std_width=std_width, start=start, stop=stop)
+        self.layer_norm = nn.LayerNorm(kernel_num, dtype=env.GLOBAL_PT_FLOAT_PRECISION)
+        self.neuron = neuron
+        self.activation_function = activation_function
+        self.resnet_dt = resnet_dt
+        self.precision = precision
+        self.seed = seed
+        self.use_tebd_bias = use_tebd_bias
+        self.embedding = EmbeddingNet(
+            kernel_num,
+            self.neuron,
+            self.activation_function,
+            self.resnet_dt,
+            self.precision,
+            self.seed,
+            bias=self.use_tebd_bias,
+        )
+
+    def forward(self, x):
+        pgk_feature = self.pgk(x)
+        pgk_feature = self.layer_norm(pgk_feature)
+        return self.embedding(pgk_feature)
+
+
 class GaussianKernel(nn.Module):
     def __init__(self, K=128, num_pair=512, std_width=1.0, start=0.0, stop=9.0):
         super().__init__()

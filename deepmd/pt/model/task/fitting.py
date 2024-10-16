@@ -44,11 +44,61 @@ from deepmd.utils.finetune import (
     get_index_between_two_maps,
     map_atom_exclude_types,
 )
+from deepmd.pt.model.network.network import (
+    ParamGaussianEmbedding,
+)
 
 dtype = env.GLOBAL_PT_FLOAT_PRECISION
 device = env.DEVICE
 
 log = logging.getLogger(__name__)
+
+
+
+class ParamEmbeddingArgs:
+    def __init__(
+        self,
+        kernel_num=64,
+        std_width=1.0,
+        start=0,
+        stop=9,
+        activation_function="tanh",
+        neuron=[10, 10],
+        resnet_dt=False,
+        use_tebd_bias=False,
+    ):
+        self.kernel_num = kernel_num
+        self.std_width = std_width
+        self.start = start
+        self.stop = stop
+        self.activation_function = activation_function
+        self.neuron = neuron
+        self.resnet_dt = resnet_dt
+        self.use_tebd_bias = use_tebd_bias
+
+    def __getitem__(self, key):
+        if hasattr(self, key):
+            return getattr(self, key)
+        else:
+            raise KeyError(key)
+
+    def serialize(self) -> dict:
+        return {
+            "kernel_num": self.kernel_num,
+            "std_width": self.std_width,
+            "start": self.start,
+            "stop": self.stop,
+            "activation_function": self.activation_function,
+            "neuron": self.neuron,
+            "resnet_dt": self.resnet_dt,
+            "precision": self.precision,
+            "seed": self.seed,
+            "use_tebd_bias": self.use_tebd_bias,
+        }
+
+    @classmethod
+    def deserialize(cls, data: dict) -> "ParamEmbeddingArgs":
+        return cls(**data)
 
 
 class Fitting(torch.nn.Module, BaseFitting):
@@ -151,6 +201,7 @@ class GeneralFitting(Fitting):
         trainable: Union[bool, List[bool]] = True,
         remove_vaccum_contribution: Optional[List[bool]] = None,
         type_map: Optional[List[str]] = None,
+        param_embd: Optional[Union[ParamEmbeddingArgs, dict]] = None,
         **kwargs,
     ):
         super().__init__()
@@ -187,6 +238,38 @@ class GeneralFitting(Fitting):
             assert self.ntypes == bias_atom_e.shape[0], "Element count mismatches!"
         self.register_buffer("bias_atom_e", bias_atom_e)
 
+        # test gaussian kernel
+        self.param_embd = param_embd is not None
+        if self.param_embd:
+            def init_subclass_params(sub_data, sub_class):
+                if isinstance(sub_data, dict):
+                    return sub_class(**sub_data)
+                elif isinstance(sub_data, sub_class):
+                    return sub_data
+                else:
+                    raise ValueError(
+                        f"Input args must be a {sub_class.__name__} class or a dict!"
+                    )
+            self.gau_embed_args = init_subclass_params(param_embd, ParamEmbeddingArgs)
+            if self.numb_fparam > 1:
+                raise ValueError("Currently only support one frame parameter for gaussian embedding")
+            # self.gau_embed = ParamGaussianEmbedding(kernel_num=128, std_width=5.0, start=100.0, stop=500.0)
+            self.gau_embed = ParamGaussianEmbedding(
+                kernel_num=self.gau_embed_args.kernel_num,
+                std_width=self.gau_embed_args.std_width,
+                start=self.gau_embed_args.start,
+                stop=self.gau_embed_args.stop,
+                activation_function=self.gau_embed_args.activation_function,
+                neuron=self.gau_embed_args.neuron,
+                resnet_dt=self.gau_embed_args.resnet_dt,
+                precision=self.precision,
+                seed=self.seed,
+                use_tebd_bias=self.gau_embed_args.use_tebd_bias,
+            )
+            self.param_embd_dim = self.gau_embed_args.neuron[-1]
+            
+        # test end
+
         if self.numb_fparam > 0:
             self.register_buffer(
                 "fparam_avg",
@@ -210,7 +293,10 @@ class GeneralFitting(Fitting):
         else:
             self.aparam_avg, self.aparam_inv_std = None, None
 
-        in_dim = self.dim_descrpt + self.numb_fparam + self.numb_aparam
+        if self.param_embd:
+            in_dim = self.dim_descrpt + self.param_embd_dim + self.numb_aparam
+        else:
+            in_dim = self.dim_descrpt + self.numb_fparam + self.numb_aparam
 
         self.old_impl = kwargs.get("old_impl", False)
         if self.old_impl:
@@ -293,6 +379,7 @@ class GeneralFitting(Fitting):
             "neuron": self.neuron,
             "resnet_dt": self.resnet_dt,
             "numb_fparam": self.numb_fparam,
+            "param_embd": self.param_embd,
             "numb_aparam": self.numb_aparam,
             "activation_function": self.activation_function,
             "precision": self.precision,
@@ -446,9 +533,12 @@ class GeneralFitting(Fitting):
                 )
             fparam = fparam.view([nf, self.numb_fparam])
             nb, _ = fparam.shape
-            t_fparam_avg = self._extend_f_avg_std(self.fparam_avg, nb)
-            t_fparam_inv_std = self._extend_f_avg_std(self.fparam_inv_std, nb)
-            fparam = (fparam - t_fparam_avg) * t_fparam_inv_std
+            if not self.param_embd:
+                t_fparam_avg = self._extend_f_avg_std(self.fparam_avg, nb)
+                t_fparam_inv_std = self._extend_f_avg_std(self.fparam_inv_std, nb)
+                fparam = (fparam - t_fparam_avg) * t_fparam_inv_std
+            else:
+                fparam = self.gau_embed(fparam)
             fparam = torch.tile(fparam.reshape([nf, 1, -1]), [1, nloc, 1])
             xx = torch.cat(
                 [xx, fparam],

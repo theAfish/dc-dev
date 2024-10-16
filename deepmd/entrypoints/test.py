@@ -127,7 +127,7 @@ def test(
         log.info(f"# testing system : {system}")
 
         # create data class
-        tmap = dp.get_type_map() if isinstance(dp, DeepPot) or isinstance(dp, DeepProperty) else None
+        tmap = dp.get_type_map() if isinstance(dp, (DeepPot, DeepProperty)) else None
         data = DeepmdData(
             system,
             set_prefix="set",

@@ -22,9 +22,9 @@ from .make_model import (
 DPEnergyModel_ = make_model(DPEnergyAtomicModel)
 
 
-@BaseModel.register("ener")
+@BaseModel.register("ener_rec")
 class EnergyModel(DPModelCommon, DPEnergyModel_):
-    model_type = "ener"
+    model_type = "ener_rec"
 
     def __init__(
         self,
@@ -85,8 +85,6 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
                 model_predict["force"] = model_ret["dforce"]
             if "mask" in model_ret:
                 model_predict["mask"] = model_ret["mask"]
-            if "debug" in model_ret:
-                model_predict["debug"] = model_ret["debug"]
         else:
             model_predict = model_ret
             model_predict["updated_coord"] += coord

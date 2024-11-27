@@ -1193,7 +1193,7 @@ class Trainer:
         fout.flush()
 
 
-def get_additional_data_requirement(_model):
+def get_additional_data_requirement(_model, debug=True):
     additional_data_requirement = []
     if _model.get_dim_fparam() > 0:
         fparam_requirement_items = [
@@ -1217,6 +1217,13 @@ def get_additional_data_requirement(_model):
             DataRequirementItem("spin", ndof=3, atomic=True, must=True)
         ]
         additional_data_requirement += spin_requirement_items
+    if debug == True:
+        post_requirement_items = [
+            DataRequirementItem(
+                "property", 1, atomic=False, must=True
+            )
+        ]
+        additional_data_requirement += post_requirement_items
     return additional_data_requirement
 
 

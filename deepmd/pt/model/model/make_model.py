@@ -360,6 +360,8 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]):
             )
             pp = self.precision_dict[input_prec]
             odef = self.model_output_def()
+            if "debug" in model_ret.keys():
+                model_ret["debug"] = model_ret["debug"].to(pp)
             for kk in odef.keys():
                 if kk not in model_ret.keys():
                     # do not return energy_derv_c if not do_atomic_virial

@@ -69,7 +69,7 @@ if TYPE_CHECKING:
     import ase.neighborlist
 
 
-class DeepEval(DeepEvalBackend):
+class ReceptiveField(DeepEvalBackend):
     """PyTorch backend implementation of DeepEval.
 
     Parameters
@@ -244,42 +244,6 @@ class DeepEval(DeepEvalBackend):
         aparam: Optional[np.ndarray] = None,
         **kwargs: Any,
     ) -> dict[str, np.ndarray]:
-        """Evaluate the energy, force and virial by using this DP.
-
-        Parameters
-        ----------
-        coords
-            The coordinates of atoms.
-            The array should be of size nframes x natoms x 3
-        cells
-            The cell of the region.
-            If None then non-PBC is assumed, otherwise using PBC.
-            The array should be of size nframes x 9
-        atom_types
-            The atom types
-            The list should contain natoms ints
-        atomic
-            Calculate the atomic energy and virial
-        fparam
-            The frame parameter.
-            The array can be of size :
-            - nframes x dim_fparam.
-            - dim_fparam. Then all frames are assumed to be provided with the same fparam.
-        aparam
-            The atomic parameter
-            The array can be of size :
-            - nframes x natoms x dim_aparam.
-            - natoms x dim_aparam. Then all frames are assumed to be provided with the same aparam.
-            - dim_aparam. Then all frames and atoms are provided with the same aparam.
-        **kwargs
-            Other parameters
-
-        Returns
-        -------
-        output_dict : dict
-            The output of the evaluation. The keys are the names of the output
-            variables, and the values are the corresponding output arrays.
-        """
         # convert all of the input to numpy array
         atom_types = np.array(atom_types, dtype=np.int32)
         coords = np.array(coords)
@@ -289,20 +253,9 @@ class DeepEval(DeepEvalBackend):
             coords, atom_types, len(atom_types.shape) > 1
         )
         request_defs = self._get_request_defs(atomic)
-        if "spin" not in kwargs or kwargs["spin"] is None:
-            out = self._eval_func(self._eval_model, numb_test, natoms)(
-                coords, cells, atom_types, fparam, aparam, request_defs
-            )
-        else:
-            out = self._eval_func(self._eval_model_spin, numb_test, natoms)(
-                coords,
-                cells,
-                atom_types,
-                np.array(kwargs["spin"]),
-                fparam,
-                aparam,
-                request_defs,
-            )
+        out = self._eval_func(self._eval_model, numb_test, natoms)(
+            coords, cells, atom_types, fparam, aparam, request_defs
+        )
         return dict(
             zip(
                 [x.name for x in request_defs],
@@ -440,93 +393,9 @@ class DeepEval(DeepEvalBackend):
         do_atomic_virial = any(
             x.category == OutputVariableCategory.DERV_C for x in request_defs
         )
-        do_energy_receptive_field = any(
-            x.category == OutputVariableCategory.RECEP_FIELD for x in request_defs
-        )
         batch_output = model(
             coord_input,
             type_input,
-            box=box_input,
-            do_atomic_virial=do_atomic_virial,
-            do_energy_receptive_field=do_energy_receptive_field,
-            fparam=fparam_input,
-            aparam=aparam_input,
-        )
-        if isinstance(batch_output, tuple):
-            batch_output = batch_output[0]
-
-        results = []
-        for odef in request_defs:
-            pt_name = self._OUTDEF_DP2BACKEND[odef.name]
-            if pt_name in batch_output:
-                shape = self._get_output_shape(odef, nframes, natoms)
-                out = batch_output[pt_name].reshape(shape).detach().cpu().numpy()
-                results.append(out)
-            else:
-                shape = self._get_output_shape(odef, nframes, natoms)
-                results.append(
-                    np.full(np.abs(shape), np.nan, dtype=prec)
-                )  # this is kinda hacky
-        return tuple(results)
-
-    def _eval_model_spin(
-        self,
-        coords: np.ndarray,
-        cells: Optional[np.ndarray],
-        atom_types: np.ndarray,
-        spins: np.ndarray,
-        fparam: Optional[np.ndarray],
-        aparam: Optional[np.ndarray],
-        request_defs: list[OutputVariableDef],
-    ):
-        model = self.dp.to(DEVICE)
-
-        nframes = coords.shape[0]
-        if len(atom_types.shape) == 1:
-            natoms = len(atom_types)
-            atom_types = np.tile(atom_types, nframes).reshape(nframes, -1)
-        else:
-            natoms = len(atom_types[0])
-
-        coord_input = torch.tensor(
-            coords.reshape([nframes, natoms, 3]),
-            dtype=GLOBAL_PT_FLOAT_PRECISION,
-            device=DEVICE,
-        )
-        type_input = torch.tensor(atom_types, dtype=torch.long, device=DEVICE)
-        spin_input = torch.tensor(
-            spins.reshape([nframes, natoms, 3]),
-            dtype=GLOBAL_PT_FLOAT_PRECISION,
-            device=DEVICE,
-        )
-        if cells is not None:
-            box_input = torch.tensor(
-                cells.reshape([nframes, 3, 3]),
-                dtype=GLOBAL_PT_FLOAT_PRECISION,
-                device=DEVICE,
-            )
-        else:
-            box_input = None
-        if fparam is not None:
-            fparam_input = to_torch_tensor(
-                fparam.reshape(nframes, self.get_dim_fparam())
-            )
-        else:
-            fparam_input = None
-        if aparam is not None:
-            aparam_input = to_torch_tensor(
-                aparam.reshape(nframes, natoms, self.get_dim_aparam())
-            )
-        else:
-            aparam_input = None
-
-        do_atomic_virial = any(
-            x.category == OutputVariableCategory.DERV_C_REDU for x in request_defs
-        )
-        batch_output = model(
-            coord_input,
-            type_input,
-            spin=spin_input,
             box=box_input,
             do_atomic_virial=do_atomic_virial,
             fparam=fparam_input,
@@ -545,13 +414,7 @@ class DeepEval(DeepEvalBackend):
             else:
                 shape = self._get_output_shape(odef, nframes, natoms)
                 results.append(
-                    np.full(
-                        np.abs(shape),
-                        np.nan,
-                        dtype=NP_PRECISION_DICT[
-                            RESERVED_PRECISON_DICT[GLOBAL_PT_FLOAT_PRECISION]
-                        ],
-                    )
+                    np.full(np.abs(shape), np.nan, dtype=prec)
                 )  # this is kinda hacky
         return tuple(results)
 

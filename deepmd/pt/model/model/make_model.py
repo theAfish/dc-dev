@@ -135,6 +135,7 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]):
             fparam: Optional[torch.Tensor] = None,
             aparam: Optional[torch.Tensor] = None,
             do_atomic_virial: bool = False,
+            do_energy_receptive_field: bool = False,
         ) -> dict[str, torch.Tensor]:
             """Return model prediction.
 
@@ -186,6 +187,7 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]):
                 nlist,
                 mapping,
                 do_atomic_virial=do_atomic_virial,
+                do_energy_receptive_field=do_energy_receptive_field,
                 fparam=fp,
                 aparam=ap,
             )
@@ -194,6 +196,7 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]):
                 self.model_output_def(),
                 mapping,
                 do_atomic_virial=do_atomic_virial,
+                do_energy_receptive_field=do_energy_receptive_field,
             )
             model_predict = self.output_type_cast(model_predict, input_prec)
             return model_predict
@@ -240,6 +243,7 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]):
             fparam: Optional[torch.Tensor] = None,
             aparam: Optional[torch.Tensor] = None,
             do_atomic_virial: bool = False,
+            do_energy_receptive_field: bool = False,
             comm_dict: Optional[dict[str, torch.Tensor]] = None,
             extra_nlist_sort: bool = False,
         ):
@@ -298,6 +302,7 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]):
                 self.atomic_output_def(),
                 cc_ext,
                 do_atomic_virial=do_atomic_virial,
+                do_energy_receptive_field=do_energy_receptive_field,
                 create_graph=self.training,
             )
             model_predict = self.output_type_cast(model_predict, input_prec)
@@ -360,8 +365,8 @@ def make_model(T_AtomicModel: type[BaseAtomicModel]):
             )
             pp = self.precision_dict[input_prec]
             odef = self.model_output_def()
-            if "debug" in model_ret.keys():
-                model_ret["debug"] = model_ret["debug"].to(pp)
+            if "rec_field" in model_ret.keys(): #TODO
+                model_ret["rec_field"] = model_ret["rec_field"].to(self.global_pt_ener_float_precision)
             for kk in odef.keys():
                 if kk not in model_ret.keys():
                     # do not return energy_derv_c if not do_atomic_virial

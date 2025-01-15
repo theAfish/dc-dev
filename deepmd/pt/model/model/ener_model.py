@@ -50,6 +50,8 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
             output_def["atom_virial"].squeeze(-3)
         if "mask" in out_def_data:
             output_def["mask"] = out_def_data["mask"]
+        if "rec_field" in out_def_data:
+            output_def["rec_field"] = out_def_data["rec_field"]
         return output_def
 
     def forward(
@@ -60,6 +62,7 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
         fparam: Optional[torch.Tensor] = None,
         aparam: Optional[torch.Tensor] = None,
         do_atomic_virial: bool = False,
+        do_energy_receptive_field: bool = False,
     ) -> dict[str, torch.Tensor]:
         model_ret = self.forward_common(
             coord,
@@ -68,6 +71,7 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
             fparam=fparam,
             aparam=aparam,
             do_atomic_virial=do_atomic_virial,
+            do_energy_receptive_field=do_energy_receptive_field,
         )
         if self.get_fitting_net() is not None:
             model_predict = {}
@@ -85,8 +89,8 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
                 model_predict["force"] = model_ret["dforce"]
             if "mask" in model_ret:
                 model_predict["mask"] = model_ret["mask"]
-            if "debug" in model_ret:
-                model_predict["debug"] = model_ret["debug"]
+            if "rec_field" in model_ret:
+                model_predict["rec_field"] = model_ret["rec_field"]
         else:
             model_predict = model_ret
             model_predict["updated_coord"] += coord
@@ -102,6 +106,7 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
         fparam: Optional[torch.Tensor] = None,
         aparam: Optional[torch.Tensor] = None,
         do_atomic_virial: bool = False,
+        do_energy_receptive_field: bool = False,
         comm_dict: Optional[dict[str, torch.Tensor]] = None,
     ):
         model_ret = self.forward_common_lower(
@@ -112,6 +117,7 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
             fparam=fparam,
             aparam=aparam,
             do_atomic_virial=do_atomic_virial,
+            do_energy_receptive_field=do_energy_receptive_field,
             comm_dict=comm_dict,
             extra_nlist_sort=self.need_sorted_nlist_for_lower(),
         )
@@ -121,6 +127,8 @@ class EnergyModel(DPModelCommon, DPEnergyModel_):
             model_predict["energy"] = model_ret["energy_redu"]
             if self.do_grad_r("energy"):
                 model_predict["extended_force"] = model_ret["energy_derv_r"].squeeze(-2)
+                if "rec_field" in model_ret:
+                    model_predict["rec_field"] = model_ret["rec_field"]
             if self.do_grad_c("energy"):
                 model_predict["virial"] = model_ret["energy_derv_c_redu"].squeeze(-2)
                 if do_atomic_virial:

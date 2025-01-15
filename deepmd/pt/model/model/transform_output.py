@@ -85,22 +85,22 @@ def task_deriv_one(
     assert extended_force is not None
     extended_force = -extended_force
     
-    # first split the atom_energy to na tensor with nf x 1 size
-    atom_eners = torch.split(atom_energy, 1, dim=-2)
-    e_recs = []
-    for ae in atom_eners:
-        ae = ae.squeeze(-2)
-        faked_rec_field = torch.ones_like(ae)
-        lst_ = torch.jit.annotate(list[Optional[torch.Tensor]], [faked_rec_field])
-        extended_rec = torch.autograd.grad(
-            [ae],
-            [extended_coord],
-            grad_outputs=lst_,
-            create_graph=False,
-            retain_graph=True,
-        )[0]
-        e_recs.append(extended_rec.unsqueeze(1))
-    extended_rec = torch.concat(e_recs, dim=1)
+    # # first split the atom_energy to na tensor with nf x 1 size
+    # atom_eners = torch.split(atom_energy, 1, dim=-2)
+    # faked_rec_field = torch.ones_like(atom_eners[0].squeeze(-2))
+    # lst = torch.jit.annotate(list[Optional[torch.Tensor]], [faked_rec_field])
+    # e_recs = []
+    # for ae in atom_eners:
+    #     ae = ae.squeeze(-2)
+    #     extended_rec = torch.autograd.grad(
+    #         [ae],
+    #         [extended_coord],
+    #         grad_outputs=lst,
+    #         create_graph=False,
+    #         retain_graph=True,
+    #     )[0]
+    #     e_recs.append(extended_rec.unsqueeze(1))
+    # extended_rec = torch.concat(e_recs, dim=1)
 
     if do_virial:
         extended_virial = extended_force.unsqueeze(-1) @ extended_coord.unsqueeze(-2)
@@ -112,8 +112,36 @@ def task_deriv_one(
         extended_virial = extended_virial.view(list(extended_virial.shape[:-2]) + [9])  # noqa:RUF005
     else:
         extended_virial = None
-    return extended_force, extended_virial, extended_rec
+    return extended_force, extended_virial #, extended_rec
 
+
+def task_receptive_field(
+    atom_energy: torch.Tensor,  # nf x na x 1
+    extended_coord: torch.Tensor,
+    num_atoms: Optional[int] = None,
+    create_graph: bool = False,
+):
+    # first split the atom_energy to na tensor with nf x 1 size
+    atom_eners = torch.split(atom_energy, 1, dim=-2)
+    faked_rec_field = torch.ones_like(atom_eners[0].squeeze(-2))
+    lst = torch.jit.annotate(list[Optional[torch.Tensor]], [faked_rec_field])
+    e_recs = []
+    # if there is num_atoms, then we only calculate the first num_atoms of atom_eners
+    if num_atoms is not None:
+        atom_eners = atom_eners[:num_atoms]
+    for ae in atom_eners:
+        ae = ae.squeeze(-2)
+        extended_rec = torch.autograd.grad(
+            [ae],
+            [extended_coord],
+            grad_outputs=lst,
+            create_graph=create_graph,
+            retain_graph=True,
+        )[0]
+        if isinstance(extended_rec, torch.Tensor):
+            e_recs.append(extended_rec.unsqueeze(1))
+    extended_rec = torch.concat(e_recs, dim=1)
+    return extended_rec
 
 def get_leading_dims(
     vv: torch.Tensor,
@@ -131,6 +159,8 @@ def take_deriv(
     coord_ext: torch.Tensor,
     do_virial: bool = False,
     do_atomic_virial: bool = False,
+    do_energy_receptive_field: bool = False,
+    num_rec_field: Optional[int] = None,
     create_graph: bool = True,
 ):
     size = 1
@@ -144,7 +174,7 @@ def take_deriv(
     split_rec = []
     for vvi, svvi in zip(split_vv1, split_svv1):
         # nf x nloc x 3, nf x nloc x 9
-        ffi, aviri, rec_fi = task_deriv_one(
+        ffi, aviri = task_deriv_one(
             vvi,
             svvi,
             coord_ext,
@@ -152,7 +182,16 @@ def take_deriv(
             do_atomic_virial=do_atomic_virial,
             create_graph=create_graph,
         )
-        split_rec.append(rec_fi)
+
+        if do_energy_receptive_field:
+            rec_fi = task_receptive_field(
+                vvi,
+                coord_ext,
+                num_atoms=num_rec_field,
+            )
+            rec_fi = rec_fi.unsqueeze(-2)
+            split_rec.append(rec_fi)
+
         # nf x nloc x 1 x 3, nf x nloc x 1 x 9
         ffi = ffi.unsqueeze(-2)
         split_ff.append(ffi)
@@ -163,19 +202,52 @@ def take_deriv(
     # nf x nall x v_dim x 3, nf x nall x v_dim x 9
     out_lead_shape = list(coord_ext.shape[:-1]) + vdef.shape
     ff = torch.concat(split_ff, dim=-2).view(out_lead_shape + [3])  # noqa: RUF005
-    rec_f = split_rec[0]
+    if do_energy_receptive_field:
+        rec_f = torch.concat(split_rec, dim=-2)
+    else:
+        rec_f = None
     if do_virial:
         avir = torch.concat(split_avir, dim=-2).view(out_lead_shape + [9])  # noqa: RUF005
     else:
         avir = None
     return ff, avir, rec_f
 
+def take_deriv_atomic(
+    vv: torch.Tensor,
+    vdef: OutputVariableDef,
+    coord_ext: torch.Tensor,
+    do_energy_receptive_field: bool = False,
+    create_graph: bool = True,
+):
+    size = 1
+    for ii in vdef.shape:
+        size *= ii
+    vv1 = vv.view(list(get_leading_dims(vv, vdef)) + [size])  # noqa: RUF005
+    split_vv1 = torch.split(vv1, [1] * size, dim=-1)
+    split_rec = []
+    for vvi in split_vv1:
+        if do_energy_receptive_field:
+            rec_fi = task_receptive_field(
+                vvi,
+                coord_ext,
+                num_atoms=None,
+                create_graph=create_graph,
+            )
+            rec_fi = rec_fi.unsqueeze(-2)
+            split_rec.append(rec_fi)
+    if do_energy_receptive_field:
+        rec_f = torch.concat(split_rec, dim=-2)
+    else:
+        rec_f = None
+    return rec_f
+        
 
 def fit_output_to_model_output(
     fit_ret: dict[str, torch.Tensor],
     fit_output_def: FittingOutputDef,
     coord_ext: torch.Tensor,
     do_atomic_virial: bool = False,
+    do_energy_receptive_field: bool = False,
     create_graph: bool = True,
 ) -> dict[str, torch.Tensor]:
     """Transform the output of the fitting network to
@@ -203,16 +275,30 @@ def fit_output_to_model_output(
                     coord_ext,
                     do_virial=vdef.c_differentiable,
                     do_atomic_virial=do_atomic_virial,
+                    do_energy_receptive_field=do_energy_receptive_field,
                     create_graph=create_graph,
                 )
                 model_ret[kk_derv_r] = dr
-                model_ret["debug"] = drf
+                if do_energy_receptive_field:
+                    assert drf is not None
+                    model_ret["rec_field"] = drf
                 if vdef.c_differentiable:
                     assert dc is not None
                     model_ret[kk_derv_c] = dc
                     model_ret[kk_derv_c + "_redu"] = torch.sum(
                         model_ret[kk_derv_c].to(redu_prec), dim=1
                     )
+        # if do_energy_receptive_field:
+        #     print("receptive field")
+        #     drf = take_deriv_atomic(
+        #         vv,
+        #         vdef,
+        #         coord_ext,
+        #         do_energy_receptive_field=True,
+        #         create_graph=create_graph,
+        #     )
+        #     assert drf is not None
+        #     model_ret["rec_field"] = drf
     return model_ret
 
 
@@ -221,6 +307,7 @@ def communicate_extended_output(
     model_output_def: ModelOutputDef,
     mapping: torch.Tensor,  # nf x nloc
     do_atomic_virial: bool = False,
+    do_energy_receptive_field: bool = False,
 ) -> dict[str, torch.Tensor]:
     """Transform the output of the model network defined on
     local and ghost (extended) atoms to local atoms.
@@ -257,6 +344,26 @@ def communicate_extended_output(
                     src=model_ret[kk_derv_r],
                     reduce="sum",
                 )
+
+                # add the receptive field
+                if do_energy_receptive_field:
+                    rec_fs = torch.split(model_ret["rec_field"], 1, dim=1)
+                    new_rfs = []
+                    for ext_rf in rec_fs:
+                        ext_rf = ext_rf.squeeze(1)
+                        rf = torch.zeros(
+                            vldims + derv_r_ext_dims, dtype=vv.dtype, device=vv.device
+                        )
+                        new_rf = torch.scatter_reduce(
+                            rf,
+                            1,
+                            index=mapping,
+                            src=ext_rf,
+                            reduce="sum",
+                        )
+                        new_rfs.append(new_rf.unsqueeze(1))
+                    new_ret["rec_field"] = torch.concat(new_rfs, dim=1)
+
             if vdef.c_differentiable:
                 assert vdef.r_differentiable
                 derv_c_ext_dims = list(vdef.shape) + [9]  # noqa:RUF005
@@ -282,7 +389,4 @@ def communicate_extended_output(
                 if not do_atomic_virial:
                     # pop atomic virial, because it is not correctly calculated.
                     new_ret.pop(kk_derv_c)
-    # add the debug
-    if "debug" in model_ret:
-        new_ret["debug"] = model_ret["debug"]
     return new_ret

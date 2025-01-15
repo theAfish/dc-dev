@@ -1193,7 +1193,7 @@ class Trainer:
         fout.flush()
 
 
-def get_additional_data_requirement(_model, debug=True):
+def get_additional_data_requirement(_model, debug=False):
     additional_data_requirement = []
     if _model.get_dim_fparam() > 0:
         fparam_requirement_items = [

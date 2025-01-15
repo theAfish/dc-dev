@@ -12,7 +12,6 @@ from pathlib import (
     Path,
 )
 
-import ase.atoms
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -33,14 +32,14 @@ from deepmd.pt.model.network.mlp import (
     FittingNet,
 )
 import matplotlib.pyplot as plt
-import ase
-import ase.io.extxyz
+
 
 CUR_DIR = os.path.dirname(__file__)
 
 
-def get_data(trainer, is_train=True):
-    input_dict, label_dict, _ = trainer.get_data(is_train=is_train, task_key="Default")
+
+def get_data(trainer):
+    input_dict, label_dict, _ = trainer.get_data(is_train=True, task_key="Default")
 
     (
         extended_coord,
@@ -59,23 +58,20 @@ def get_data(trainer, is_train=True):
     model_pred, _, _ = trainer.wrapper(
                     **input_dict, cur_lr=0.0, label=label_dict, task_key="Default")
     
-    receptive_field = model_pred["debug"]
-
-    # rforce = receptive_field.sum(dim=-2) 
-    # force = model_pred["force"]
-    # print("r_force", receptive_field.shape)
-    # print(rforce)
-    # print("o_force", force.shape)
-    # print(force)
-
-    return receptive_field, extended_coord, extended_atype, input_dict, model_pred
+    force = model_pred["debug"]
+    atom_energy = model_pred["atom_energy"]
+    coord = input_dict["coord"]
+    print(coord.shape, atom_energy.shape)
 
 
-# class PostLoss(torch.nn.Module):
-#     def forward(self, pred, label):
-#         pred = torch.mean(pred, dim=1)
-#         loss = F.l1_loss(pred, label)
-#         return loss
+    return extended_coord, extended_atype, force, coord, atom_energy
+
+
+class PostLoss(torch.nn.Module):
+    def forward(self, pred, label):
+        pred = torch.mean(pred, dim=1)
+        loss = F.l1_loss(pred, label)
+        return loss
 
 
 if __name__ == "__main__":
@@ -90,8 +86,6 @@ if __name__ == "__main__":
             file_model_param,
             input_dict["model"],
             model_branch="MP_traj_v024_alldata_mixu",
-            # model_branch="H2O_H2O-SCAN0",
-            # model_branch="Domains_SSE-PBE",
             change_model_params=False,
     )
 
@@ -109,38 +103,43 @@ if __name__ == "__main__":
     # loss = PostLoss()
     # optimizer = torch.optim.Adam(model.parameters(), lr=trainer.lr_exp.start_lr)
 
-    # set numpy array precision
-
-    # skip how many
-    for s in range(0):
-        _ = get_data(trainer, is_train=True)
-
     for s in range(1):
-        rf, ext_coord, ext_atype, input_dict, model_pred = get_data(trainer, is_train=False)
-
-        np.set_printoptions(precision=16)
-        # test the new rf
-        force = model_pred["force"].detach().cpu().numpy()
-        coord = input_dict["coord"].cpu().numpy()
-        atype = input_dict["atype"].cpu().numpy()
-        cell = input_dict["box"].cpu().numpy()
-        num_atoms = rf.shape[1]
-        coord = coord[0]
-        atype = atype[0]
-        force = force[0]
-
-        atoms = ase.Atoms(positions=coord, numbers=atype+1, cell=cell[0].reshape(3, 3), pbc=True)
-        atoms.arrays["force"] = force
-        ase.io.extxyz.write_extxyz("sc_{}_f.xyz".format(s), atoms, write_info=True)
-
-        for i in range(num_atoms):
-            atoms.arrays["force"] = rf[0][i][:, 0, :].cpu().numpy()
-
-            # save the atom in extxyz format
-            ase.io.extxyz.write_extxyz("sc_{}.xyz".format(s), atoms, write_info=True, append=True, comment="Time={}".format(i))
+        ext_coord, ext_atype, force, coord, ae = get_data(trainer)
 
 
+    # test the rf, first batch
+    ae = ae[0]
+    coord = coord[0]
 
+    out = torch.cat((coord, ae), dim=1)
+
+    np.savetxt("out_ae.xyz", out.detach().cpu().numpy())
+
+    ext_coord = ext_coord[0]
+    force = force[0]
+
+
+    # for i in range(num_atoms):
+    #     rf_ = rf[0][i]
+
+    #     # print(rf_.shape, ext_coord.shape)
+
+    #     # combine the ext_coord with rf
+    #     out = torch.cat((ext_coord, ext_atype.unsqueeze(-1), rf_), dim=1)
+    #     # print(out.shape)
+
+
+    #     # save the rf and ext_coord to txt
+    #     print("start save {} to txt".format(i))
+    #     file_name = "out_{}.xyz".format(i)
+    #     np.savetxt(file_name, out.cpu().numpy())
+
+    #     # add a first column to the txt file
+    #     with open(file_name, "r") as f:
+    #         lines = f.readlines()
+    #     with open(file_name, "w") as f:
+    #         f.write(f"{num_ext_atoms}\n\n")
+    #         f.write("".join(lines))
 
 
 

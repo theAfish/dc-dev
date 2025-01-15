@@ -145,6 +145,7 @@ class ModelWrapper(torch.nn.Module):
         task_key: Optional[torch.Tensor] = None,
         inference_only=False,
         do_atomic_virial=False,
+        do_energy_receptive_field=False,
         fparam: Optional[torch.Tensor] = None,
         aparam: Optional[torch.Tensor] = None,
     ):
@@ -159,6 +160,7 @@ class ModelWrapper(torch.nn.Module):
             "atype": atype,
             "box": box,
             "do_atomic_virial": do_atomic_virial,
+            "do_energy_receptive_field": do_energy_receptive_field,
             "fparam": fparam,
             "aparam": aparam,
         }

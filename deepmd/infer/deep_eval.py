@@ -77,6 +77,8 @@ class DeepEvalBackend(ABC):
         # old models in v1
         "global_polar": "global_polar",
         "wfc": "wfc",
+        # receptive field
+        "rec_field": "rec_field",
     }
 
     @abstractmethod

@@ -122,6 +122,7 @@ class OutputVariableOperation(IntEnum):
     """Second derivative w.r.t. coordinates."""
     MAG = 16
     """Magnetic output."""
+    REC_FIELD = 32
 
 
 class OutputVariableCategory(IntEnum):
@@ -143,6 +144,7 @@ class OutputVariableCategory(IntEnum):
     """Magnetic part of negative derivative w.r.t. coordinates. (e.g. magnetic force)"""
     DERV_C_MAG = OutputVariableOperation.DERV_C | OutputVariableOperation.MAG
     """Magnetic part of atomic component of the virial."""
+    RECEP_FIELD = OutputVariableOperation.REC_FIELD
 
 
 class OutputVariableDef:
@@ -192,6 +194,7 @@ class OutputVariableDef:
         reducible: bool = False,
         r_differentiable: bool = False,
         c_differentiable: bool = False,
+        receptive_field: bool = False,
         atomic: bool = True,
         category: int = OutputVariableCategory.OUT.value,
         r_hessian: bool = False,
@@ -209,6 +212,7 @@ class OutputVariableDef:
         self.reducible = reducible
         self.r_differentiable = r_differentiable
         self.c_differentiable = c_differentiable
+        self.receptive_field = receptive_field
         self.intensive = intensive
         if self.c_differentiable and not self.r_differentiable:
             raise ValueError("c differentiable requires r_differentiable")
